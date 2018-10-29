@@ -33,7 +33,7 @@
         public int? SrcPointIndex;
     }
 
-    public struct GlyphPoint
+    public class GlyphPoint
     {
         public bool OnCurve;
         public double X;

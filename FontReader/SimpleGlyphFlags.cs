@@ -3,8 +3,9 @@
 namespace FontReader
 {
     [Flags]
-    public enum SimpleGlypeFlags {
-        ON_CURVE        =  1,
+    public enum SimpleGlyphFlags : byte
+    {
+        ON_CURVE =  1,
         X_IS_BYTE       =  2,
         Y_IS_BYTE       =  4,
         REPEAT          =  8,

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace FontReader
 {
@@ -17,6 +18,32 @@ namespace FontReader
         private ushort _entrySelector;
         private ushort _rangeShift;
         private int _length;
+
+        
+        public Glyph ReadGlyph(int index)
+        {
+            var offset = GetGlyphOffset(index);
+
+            if (offset >= _tables["glyf"].Offset + _tables["glyf"].Length) throw new Exception("Bad font: Invalid glyph offset (too high) at index " + index);
+            if (offset < _tables["glyf"].Offset) throw new Exception("Bad font: Invalid glyph offset (too low) at index" + index);
+
+            file.Seek(offset);
+            var glyph = new Glyph{
+                NumberOfContours = file.GetInt16(),
+                xMin = file.GetFWord(),
+                yMin = file.GetFWord(),
+                xMax = file.GetFWord(),
+                yMax = file.GetFWord()
+            };
+
+            if (glyph.NumberOfContours < -1) throw new Exception("Bad font: Invalid contour count at index " + index);
+
+            var baseOffset = file.Tell();
+            if (glyph.NumberOfContours == 0) return EmptyGlyph(glyph);
+            else if (glyph.NumberOfContours == -1) return ReadCompoundGlyph(glyph, baseOffset);
+            return ReadSimpleGlyph(glyph, baseOffset);
+        }
+
 
         public TrueTypeFont(string filename)
         {
@@ -74,7 +101,7 @@ namespace FontReader
             return h;
         }
 
-        public Dictionary<string, OffsetEntry> ReadOffsetTables()
+        private Dictionary<string, OffsetEntry> ReadOffsetTables()
         {
             var tables = new Dictionary<string, OffsetEntry>();
 
@@ -96,10 +123,10 @@ namespace FontReader
                 };
                 tables.Add(tag, entry);
 
-                if (tag != "head") {
+               /* if (tag != "head") {
                     if (CalculateTableChecksum(file, tables[tag].Offset, tables[tag].Length) != tables[tag].Checksum)
                         throw new Exception("Bad file format: checksum fail in offset tables");
-                }
+                }*/
             }
             return tables;
         }
@@ -118,14 +145,84 @@ namespace FontReader
             return sum;
         }
 
-        public Glyph ReadGlyph(int index)
+        private Glyph ReadCompoundGlyph(Glyph glyph, long baseOffset)
         {
-            var offset = GetGlyphOffset(index);
-            
-            if (offset >= _tables["glyf"].Offset + _tables["glyf"].Length) throw new Exception("Bad font: Invalid glyph offset (too high)");
-            if (offset < _tables["glyf"].Offset) throw new Exception("Bad font: Invalid glyph offset (too low)");
+            // http://stevehanov.ca/blog/TrueType.js
+            throw new Exception("Compounds not yet supported");
+        }
 
+        private Glyph EmptyGlyph(Glyph g)
+        {
+            g.GlyphType = GlyphTypes.Empty;
+            return g;
+        }
 
+        private Glyph ReadSimpleGlyph(Glyph g, long baseOffset)
+        {
+            g.GlyphType = GlyphTypes.Simple;
+
+            var ends = new List<int>();
+
+            for (int i = 0; i < g.NumberOfContours; i++) { ends.Add(file.GetUint16()); }
+
+            // Skip past hinting instructions
+            file.Skip(file.GetUint16());
+
+            var numPoints = ends.Max() + 1;
+
+            // Flags and points match up (TODO: add flags to the point struct?)
+            var flags = new List<SimpleGlyphFlags>();
+            var points = new List<GlyphPoint>();
+
+            // Read point flags, creating base entries
+            for (int i = 0; i < numPoints; i++)
+            {
+                var flag = (SimpleGlyphFlags)file.GetUint8();
+                flags.Add(flag);
+                points.Add(new GlyphPoint{ OnCurve = flag.HasFlag(SimpleGlyphFlags.ON_CURVE)});
+
+                if (flag.HasFlag(SimpleGlyphFlags.REPEAT)) {
+                    var repeatCount = file.GetUint8();
+                    i += repeatCount;
+                    while (repeatCount-- > 0) {
+                        flags.Add(flag);
+                        points.Add(new GlyphPoint{ OnCurve = flag.HasFlag(SimpleGlyphFlags.ON_CURVE)});
+                    }
+                }
+            }
+
+            // Fill out point data
+            ElaborateCoords(flags, points, (p,v) => p.X = v, SimpleGlyphFlags.X_IS_BYTE, SimpleGlyphFlags.X_DELTA, g.xMin, g.xMax);
+            ElaborateCoords(flags, points, (p,v) => p.Y = v, SimpleGlyphFlags.Y_IS_BYTE, SimpleGlyphFlags.Y_DELTA, g.yMin, g.yMax);
+
+            g.Points = points.ToArray();
+            g.ContourEnds = ends.ToArray();
+
+            return g;
+        }
+
+        private void ElaborateCoords(List<SimpleGlyphFlags> flags, List<GlyphPoint> points, Action<GlyphPoint, double> map, SimpleGlyphFlags byteFlag, SimpleGlyphFlags deltaFlag, double min, double max)
+        {
+            var value = 0.0d;
+
+            for (int i = 0; i < points.Count; i++)
+            {
+                var flag = flags[i];
+                if (flag.HasFlag(byteFlag)) {
+                    if (flag.HasFlag(deltaFlag)) {
+                        value += file.GetUint8();
+                    } else {
+                        value -= file.GetUint8();
+                    }
+                } else if (!flag.HasFlag(deltaFlag)) {
+                    value += file.GetInt16();
+                } else {
+                    // value not changed
+                    // this is why X and Y are separate
+                }
+
+                map(points[i], value);
+            }
         }
 
         private long GetGlyphOffset(int index)

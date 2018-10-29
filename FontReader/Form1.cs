@@ -19,18 +19,56 @@ namespace FontReader
             }
             var img = new Bitmap(640, 480, PixelFormat.Format24bppRgb);
 
-            for (int y = 0; y < 480; y++)
+            /*for (int y = 0; y < 480; y++)
             {
                 for (int x = 0; x < 640; x++)
                 {
                     img.SetPixel(x, y, Color.FromArgb(x % 128, y % 255, 128 ));
                 }
-            }
+            }*/
 
+            var fr = new TrueTypeFont("dave.ttf");
+
+            using (var g = Graphics.FromImage(img)) {
+                DrawGlyph(g, 100, 100, fr.ReadGlyph(13));
+                DrawGlyph(g, 130, 100, fr.ReadGlyph(14));
+                DrawGlyph(g, 160, 100, fr.ReadGlyph(6));
+            }
 
             outputPictureBox.Image = img;
             Width = img.Width + 18;
             Height = img.Height + 41;
+        }
+
+        private void DrawGlyph(Graphics g, float dx, float dy, Glyph glyph)
+        {
+            if (glyph.GlyphType != GlyphTypes.Simple) return;
+
+            var p = 0;
+            var c = 0;
+            var first = 1;
+            var prev = new PointF();
+            var next = new PointF();
+
+            while (p < glyph.Points.Length) {
+                var point = glyph.Points[p];
+                prev = next;
+                next = new PointF((float) (dx + point.X/15.0), (float) (dy - point.Y/15.0));
+
+                if (first == 1) {
+                    first = 0;
+                } else {
+                    g.DrawLine(Pens.White, prev, next);
+                }
+
+                if (p == glyph.ContourEnds[c]) {
+                    c++;
+                    first = 1;
+                }
+                
+                p++;
+            }
+            g.DrawLine(Pens.White, prev, next);
         }
     }
 }

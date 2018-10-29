@@ -39,31 +39,26 @@ namespace FontReader
         public long Tell() => pos;
 
         /// <summary> Read an unsigned byte from current position and advance </summary>
-        public byte GetUint8(){ return data[pos++]; } 
+        public int GetUint8(){ return data[pos++]; } 
         
         /// <summary> Read an unsigned 16bit word from current position and advance </summary>
-        public ushort GetUint16(){ return (ushort) ((GetUint8() << 8) | (GetUint8())); }
+        public ushort GetUint16(){ return (ushort) ((GetUint8() * 256) + GetUint8()); }
 
         /// <summary> Read an unsigned 16bit word from current position and advance </summary>
         public uint GetUint32() { return (uint)GetInt32(); }
         
         /// <summary> Read an signed 16bit word from current position and advance </summary>
         public short GetInt16() {
-            var result = GetUint16();
-            if ((result & 0x8000) > 0) {
-                var adj = result - (1 << 16);
-                return (short)adj;
-            }
-            return (short)result;
+            return (short)GetUint16();
         }
 
         /// <summary> Read an signed 32bit word from current position and advance </summary>
-        public int GetInt32()
+        public long GetInt32()
         {
-            return (GetUint8() << 24) |
-                   (GetUint8() << 16) |
-                   (GetUint8() << 8) |
-                   (GetUint8());
+            return (GetUint8() << 24) +
+                   (GetUint8() << 16) +
+                   (GetUint8() << 8) +
+                   GetUint8();
         }
 
         /// <summary>
@@ -98,6 +93,14 @@ namespace FontReader
             var utcBase = new DateTime(1904, 1, 1, 0, 0, 0);
 
             return utcBase.AddSeconds(macTimeSeconds);
+        }
+
+        /// <summary>
+        /// Skip forward from current position
+        /// </summary>
+        public void Skip(int dist)
+        {
+            pos += dist;
         }
     }
 }
