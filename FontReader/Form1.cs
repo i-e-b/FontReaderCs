@@ -24,14 +24,14 @@ namespace FontReader
             var guthenFnt = new TrueTypeFont("guthen_bloots.ttf"); // a very curvy font (control points not yet supported)
 
             var msg_1 = "Hello, world! $ ▚ ¾ ∜";
-            var msg_2 = "Gots to be funky";
+            var msg_2 = "Got to be funky";
             float left = 25;
             float baseline = 150f;
             float scale = 0.03f;
             float letterSpace = 5;
 
             using (var g = Graphics.FromImage(img)) {
-                g.SmoothingMode = SmoothingMode.HighQuality;
+                g.SmoothingMode = SmoothingMode.None;
 
                 // Draw first message with angular font
                 for (int i = 0; i < msg_1.Length; i++)
@@ -75,24 +75,35 @@ namespace FontReader
 
             while (p < glyph.Points.Length) {
                 var point = glyph.Points[p];
+                /*if (point.OnCurve) { ... }*/ // to handle control points
                 prev = next;
                 next = new PointF((float) (dx + point.X * scale), (float) (dy - point.Y * scale)); // can adjust the X scale here to help with sub-pixel AA
 
                 if (first == 1) {
                     close = next;
                     first = 0;
-                } else {
-                    g.DrawLine(Pens.White, prev, next); // currently totally ignores control points and curves
+                } else
+                {
+                    // currently totally ignores control points and curves
+                    ColorCodedLine(g, prev, next);
                 }
 
                 if (p == glyph.ContourEnds[c]) {
-                    g.DrawLine(Pens.White, next, close); // ensure closed paths
+                    ColorCodedLine(g, next, close); // ensure closed paths
                     c++;
                     first = 1;
                 }
                 
                 p++;
             }
+        }
+
+        private static void ColorCodedLine(Graphics g, PointF prev, PointF next)
+        {
+            // Green = winding increase, Red = Winding decrease. (Blue would be ignored in non-zero winding?)
+            if (prev.Y > next.Y) g.DrawLine(Pens.GreenYellow, prev, next);
+            else if (prev.Y == next.Y) g.DrawLine(Pens.LightSkyBlue, prev, next);
+            else g.DrawLine(Pens.Red, prev, next);
         }
     }
 }
