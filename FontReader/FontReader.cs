@@ -10,6 +10,7 @@ namespace FontReader
 
         private readonly BinaryReader file;
         private readonly Dictionary<string, OffsetEntry> _tables;
+        private readonly Dictionary<char, int> _unicodeIndexes;
 
         private readonly FontHeader _header;
 
@@ -41,10 +42,19 @@ namespace FontReader
             var baseOffset = file.Position();
             if (forceEmpty || glyph.NumberOfContours == 0) return EmptyGlyph(glyph);
             if (glyph.NumberOfContours == -1) return ReadCompoundGlyph(glyph, baseOffset);
-            return ReadSimpleGlyph(glyph, baseOffset);
+            return ReadSimpleGlyph(glyph);
+        }
+        
+        public Glyph ReadGlyph(char wantedChar)
+        {
+            if ( ! _unicodeIndexes.ContainsKey(wantedChar)) {
+                _unicodeIndexes.Add(wantedChar,  GlyphIndexForChar(wantedChar));
+            }
+
+            return ReadGlyphByIndex(_unicodeIndexes[wantedChar], char.IsWhiteSpace(wantedChar));
         }
 
-        public Glyph ReadGlyph(char wantedChar)
+        private int GlyphIndexForChar(char wantedChar)
         {
             // read cmap table if possible,
             // then call down to the index based ReadGlyph.
@@ -52,7 +62,6 @@ namespace FontReader
             if ( ! _tables.ContainsKey("cmap")) throw new Exception("Can't translate character: cmap table missing");
             file.Seek(_tables["cmap"].Offset);
 
-            // TODO: move this out so we only hunt once
             var vers = file.GetUint16();
             var numTables = file.GetUint16();
             var offset = 0u;
@@ -71,7 +80,9 @@ namespace FontReader
                 }
             }
 
-            if (!found) return ReadGlyphByIndex(0, false); // the specific 'missing' glyph
+            if (!found) {
+                return 0; // the specific 'missing' glyph
+            }
             
             // format 4 table
             if (offset < file.Position()) {file.Seek(_tables["cmap"].Offset + offset); } // guessing
@@ -98,7 +109,6 @@ namespace FontReader
             var targetSegment = -1;
 
             var c = (int)wantedChar;
-            var shouldBeEmpty = Char.IsWhiteSpace(wantedChar);
 
             for (int i = 0; i < segs; i++)
             {
@@ -110,14 +120,14 @@ namespace FontReader
                 }
             }
             
-            if (targetSegment < 0) return ReadGlyphByIndex(0, false); // the specific 'missing' glyph
+            if (targetSegment < 0) return 0; // the specific 'missing' glyph
 
             var rangeOffset = file.PickUint16(idRangeOffsetBase, targetSegment);
             if (rangeOffset == 0) {
                 // direct lookup:
                 var lu = file.PickInt16(idDeltaBase, targetSegment); // this can represent a negative by way of the modulo
                 var glyphIdx = (lu + c) % 65536;
-                return ReadGlyphByIndex(glyphIdx, shouldBeEmpty);
+                return glyphIdx;
             }
 
             // Complex case. The TrueType spec expects us to have mapped the font into memory, then do some
@@ -133,13 +143,14 @@ namespace FontReader
             var glyphIndexAddress = ros + 2 * (c - startc) + offsro;
             var res = file.PickInt16(glyphIndexAddress, 0);
 
-            return ReadGlyphByIndex(res, shouldBeEmpty);
+            return res;
         }
 
 
         public TrueTypeFont(string filename)
         {
             file = new BinaryReader(filename);
+            _unicodeIndexes = new Dictionary<char, int>();
 
             // The order that things are read below is important
             // DO NOT REARRANGE CALLS!
@@ -166,7 +177,8 @@ namespace FontReader
             file.Seek(_tables["head"].Offset);
 
             var h = new FontHeader();
-
+            
+            // DO NOT REARRANGE CALLS!
             h.Version = file.GetFixed();
             h.Revision = file.GetFixed();
             h.ChecksumAdjustment = file.GetUint32();
@@ -249,7 +261,7 @@ namespace FontReader
             return g;
         }
 
-        private Glyph ReadSimpleGlyph(Glyph g, long baseOffset)
+        private Glyph ReadSimpleGlyph(Glyph g)
         {
             g.GlyphType = GlyphTypes.Simple;
 
@@ -262,7 +274,7 @@ namespace FontReader
 
             var numPoints = ends.Max() + 1;
 
-            // Flags and points match up (TODO: add flags to the point struct?)
+            // Flags and points match up
             var flags = new List<SimpleGlyphFlags>();
             var points = new List<GlyphPoint>();
 

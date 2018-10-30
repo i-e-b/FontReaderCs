@@ -25,6 +25,7 @@ namespace FontReader
 
             var msg_1 = "Hello, world! $ ▚ ¾ ∜";
             var msg_2 = "Got to be funky";
+            var msg_3 = "But, in a larger sense, we can not dedicate—we can not consecrate—we can not hallow—this ground. The brave men, living and dead, who struggled here, have consecrated it, far above our poor power to add or detract. The world will little note, nor long remember what we say here, but it can never forget what they did here.";
             float left = 25;
             float baseline = 150f;
             float scale = 0.03f;
@@ -50,6 +51,21 @@ namespace FontReader
                 for (int i = 0; i < msg_2.Length; i++)
                 {
                     var glyph = guthenFnt.ReadGlyph(msg_2[i]);
+
+                    DrawGlyph(g, left, baseline, scale, glyph);
+                    left += (float)glyph.xMax * scale;
+                    left += letterSpace;
+                }
+                
+                g.SmoothingMode = SmoothingMode.HighQuality;
+                // Draw a much longer message in the angular font
+                left = 5;
+                baseline = 50f;
+                scale = 0.01f;
+                letterSpace = 1;
+                for (int i = 0; i < msg_3.Length; i++)
+                {
+                    var glyph = daveFnt.ReadGlyph(msg_3[i]);
 
                     DrawGlyph(g, left, baseline, scale, glyph);
                     left += (float)glyph.xMax * scale;
