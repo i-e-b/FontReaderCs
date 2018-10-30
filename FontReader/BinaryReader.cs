@@ -123,5 +123,17 @@ namespace FontReader
             var b = data[baseAddr+i+1];
             return (ushort)((a << 8) + b);
         }
+        
+        /// <summary>
+        /// Pick a signed Int16 from an array at `baseAddr` with 0-based `index`.
+        /// This does NOT use or update the current position
+        /// </summary>
+        public short PickInt16(long baseAddr, int index)
+        {
+            var i = index*2;
+            int a = data[baseAddr+i];
+            var b = data[baseAddr+i+1];
+            return (short)((a << 8) + b);
+        }
     }
 }

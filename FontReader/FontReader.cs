@@ -20,7 +20,7 @@ namespace FontReader
         private int _length;
 
         
-        public Glyph ReadGlyphByIndex(int index)
+        public Glyph ReadGlyphByIndex(int index, bool forceEmpty)
         {
             var offset = GetGlyphOffset(index);
 
@@ -39,8 +39,8 @@ namespace FontReader
             if (glyph.NumberOfContours < -1) throw new Exception("Bad font: Invalid contour count at index " + index);
 
             var baseOffset = file.Position();
-            if (glyph.NumberOfContours == 0) return EmptyGlyph(glyph);
-            else if (glyph.NumberOfContours == -1) return ReadCompoundGlyph(glyph, baseOffset);
+            if (forceEmpty || glyph.NumberOfContours == 0) return EmptyGlyph(glyph);
+            if (glyph.NumberOfContours == -1) return ReadCompoundGlyph(glyph, baseOffset);
             return ReadSimpleGlyph(glyph, baseOffset);
         }
 
@@ -48,7 +48,7 @@ namespace FontReader
         {
             // read cmap table if possible,
             // then call down to the index based ReadGlyph.
-            
+
             if ( ! _tables.ContainsKey("cmap")) throw new Exception("Can't translate character: cmap table missing");
             file.Seek(_tables["cmap"].Offset);
 
@@ -71,7 +71,7 @@ namespace FontReader
                 }
             }
 
-            if (!found) return ReadGlyphByIndex(0); // the specific 'missing' glyph
+            if (!found) return ReadGlyphByIndex(0, false); // the specific 'missing' glyph
             
             // format 4 table
             if (offset < file.Position()) {file.Seek(_tables["cmap"].Offset + offset); } // guessing
@@ -98,6 +98,7 @@ namespace FontReader
             var targetSegment = -1;
 
             var c = (int)wantedChar;
+            var shouldBeEmpty = Char.IsWhiteSpace(wantedChar);
 
             for (int i = 0; i < segs; i++)
             {
@@ -109,31 +110,30 @@ namespace FontReader
                 }
             }
             
-            if (targetSegment < 0) return ReadGlyphByIndex(0); // the specific 'missing' glyph
+            if (targetSegment < 0) return ReadGlyphByIndex(0, false); // the specific 'missing' glyph
 
             var rangeOffset = file.PickUint16(idRangeOffsetBase, targetSegment);
             if (rangeOffset == 0) {
                 // direct lookup:
-                var lu = file.PickUint16(idDeltaBase, targetSegment); // this can represent a negative by way of the modulo
+                var lu = file.PickInt16(idDeltaBase, targetSegment); // this can represent a negative by way of the modulo
                 var glyphIdx = (lu + c) % 65536;
-                return ReadGlyphByIndex(glyphIdx);
+                return ReadGlyphByIndex(glyphIdx, shouldBeEmpty);
             }
 
             // Complex case. The TrueType spec expects us to have mapped the font into memory, then do some
             // nasty pointer arithmetic. "This obscure indexing trick works because glyphIdArray immediately follows idRangeOffset in the font file"
+            //
+            // https://docs.microsoft.com/en-us/typography/opentype/spec/cmap
+            // https://github.com/LayoutFarm/Typography/wiki/How-To-Translate-Unicode-Character-Codes-to-TrueType-Glyph-Indices-in-Windows-95
+            // https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6cmap.html
 
-            var ros = file.PickUint16(idRangeOffsetBase, targetSegment) / 2; // UInt16 count
-            var chof = c - file.PickUint16(startsBase, targetSegment);
-            var basof = idRangeOffsetBase + (targetSegment * 2);
+            var ros = file.PickUint16(idRangeOffsetBase, targetSegment);
+            var startc = file.PickUint16(startsBase, targetSegment);
+            var offsro = idRangeOffsetBase + (targetSegment * 2);
+            var glyphIndexAddress = ros + 2 * (c - startc) + offsro;
+            var res = file.PickInt16(glyphIndexAddress, 0);
 
-            var idResult = file.PickUint16(ros+chof+basof, 0);
-            if (idResult > 0) {
-                var glyphIdx = (file.PickUint16(idDeltaBase,targetSegment) + idResult) % 65536;
-                return ReadGlyphByIndex(glyphIdx);
-            }
-
-            // Found nothing
-            return ReadGlyphByIndex(0); 
+            return ReadGlyphByIndex(res, shouldBeEmpty);
         }
 
 

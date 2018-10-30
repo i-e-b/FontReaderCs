@@ -1,4 +1,5 @@
 ﻿using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Windows.Forms;
 
@@ -19,23 +20,40 @@ namespace FontReader
             }
             var img = new Bitmap(640, 480, PixelFormat.Format24bppRgb);
 
-            /*for (int y = 0; y < 480; y++)
-            {
-                for (int x = 0; x < 640; x++)
-                {
-                    img.SetPixel(x, y, Color.FromArgb(x % 128, y % 255, 128 ));
-                }
-            }*/
+            var daveFnt = new TrueTypeFont("dave.ttf"); // a font that uses only straight edges (easy to render)
+            var guthenFnt = new TrueTypeFont("guthen_bloots.ttf"); // a very curvy font (control points not yet supported)
 
-            var fr = new TrueTypeFont("dave.ttf");
-
-            //var msg = "Hello, world!";
-            var msg = " ";
+            var msg_1 = "Hello, world! $ ▚ ¾ ∜";
+            var msg_2 = "Gots to be funky";
+            float left = 25;
+            float baseline = 150f;
+            float scale = 0.03f;
+            float letterSpace = 5;
 
             using (var g = Graphics.FromImage(img)) {
-                for (int i = 0; i < msg.Length; i++)
+                g.SmoothingMode = SmoothingMode.HighQuality;
+
+                // Draw first message with angular font
+                for (int i = 0; i < msg_1.Length; i++)
                 {
-                    DrawGlyph(g, 25 * i, 200, 0.05f, fr.ReadGlyph(msg[i]));
+                    var glyph = daveFnt.ReadGlyph(msg_1[i]);
+
+                    DrawGlyph(g, left, baseline, scale, glyph);
+                    left += (float)glyph.xMax * scale;
+                    left += letterSpace;
+                }
+                
+                // Draw second message with curvy font
+                left = 25;
+                baseline = 250f;
+                scale = 0.05f;
+                for (int i = 0; i < msg_2.Length; i++)
+                {
+                    var glyph = guthenFnt.ReadGlyph(msg_2[i]);
+
+                    DrawGlyph(g, left, baseline, scale, glyph);
+                    left += (float)glyph.xMax * scale;
+                    left += letterSpace;
                 }
             }
 
@@ -58,13 +76,13 @@ namespace FontReader
             while (p < glyph.Points.Length) {
                 var point = glyph.Points[p];
                 prev = next;
-                next = new PointF((float) (dx + point.X * scale), (float) (dy - point.Y * scale));
+                next = new PointF((float) (dx + point.X * scale), (float) (dy - point.Y * scale)); // can adjust the X scale here to help with sub-pixel AA
 
                 if (first == 1) {
                     close = next;
                     first = 0;
                 } else {
-                    g.DrawLine(Pens.White, prev, next);
+                    g.DrawLine(Pens.White, prev, next); // currently totally ignores control points and curves
                 }
 
                 if (p == glyph.ContourEnds[c]) {
