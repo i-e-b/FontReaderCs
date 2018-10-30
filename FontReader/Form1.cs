@@ -29,10 +29,14 @@ namespace FontReader
 
             var fr = new TrueTypeFont("dave.ttf");
 
+            //var msg = "Hello, world!";
+            var msg = " ";
+
             using (var g = Graphics.FromImage(img)) {
-                DrawGlyph(g, 100, 100, fr.ReadGlyph(13));
-                DrawGlyph(g, 130, 100, fr.ReadGlyph(14));
-                DrawGlyph(g, 160, 100, fr.ReadGlyph(6));
+                for (int i = 0; i < msg.Length; i++)
+                {
+                    DrawGlyph(g, 25 * i, 200, 0.05f, fr.ReadGlyph(msg[i]));
+                }
             }
 
             outputPictureBox.Image = img;
@@ -40,35 +44,37 @@ namespace FontReader
             Height = img.Height + 41;
         }
 
-        private void DrawGlyph(Graphics g, float dx, float dy, Glyph glyph)
+        private void DrawGlyph(Graphics g, float dx, float dy, float scale, Glyph glyph)
         {
-            if (glyph.GlyphType != GlyphTypes.Simple) return;
+            if (glyph?.GlyphType != GlyphTypes.Simple) return;
 
             var p = 0;
             var c = 0;
             var first = 1;
+            var close = new PointF();
             var prev = new PointF();
             var next = new PointF();
 
             while (p < glyph.Points.Length) {
                 var point = glyph.Points[p];
                 prev = next;
-                next = new PointF((float) (dx + point.X/15.0), (float) (dy - point.Y/15.0));
+                next = new PointF((float) (dx + point.X * scale), (float) (dy - point.Y * scale));
 
                 if (first == 1) {
+                    close = next;
                     first = 0;
                 } else {
                     g.DrawLine(Pens.White, prev, next);
                 }
 
                 if (p == glyph.ContourEnds[c]) {
+                    g.DrawLine(Pens.White, next, close); // ensure closed paths
                     c++;
                     first = 1;
                 }
                 
                 p++;
             }
-            g.DrawLine(Pens.White, prev, next);
         }
     }
 }

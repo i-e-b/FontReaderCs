@@ -20,7 +20,7 @@ namespace FontReader
         private int _length;
 
         
-        public Glyph ReadGlyph(int index)
+        public Glyph ReadGlyphByIndex(int index)
         {
             var offset = GetGlyphOffset(index);
 
@@ -38,10 +38,102 @@ namespace FontReader
 
             if (glyph.NumberOfContours < -1) throw new Exception("Bad font: Invalid contour count at index " + index);
 
-            var baseOffset = file.Tell();
+            var baseOffset = file.Position();
             if (glyph.NumberOfContours == 0) return EmptyGlyph(glyph);
             else if (glyph.NumberOfContours == -1) return ReadCompoundGlyph(glyph, baseOffset);
             return ReadSimpleGlyph(glyph, baseOffset);
+        }
+
+        public Glyph ReadGlyph(char wantedChar)
+        {
+            // read cmap table if possible,
+            // then call down to the index based ReadGlyph.
+            
+            if ( ! _tables.ContainsKey("cmap")) throw new Exception("Can't translate character: cmap table missing");
+            file.Seek(_tables["cmap"].Offset);
+
+            // TODO: move this out so we only hunt once
+            var vers = file.GetUint16();
+            var numTables = file.GetUint16();
+            var offset = 0u;
+            var found = false;
+
+            for (int i = 0; i < numTables; i++)
+            {
+                var platform = file.GetUint16();
+                var encoding = file.GetUint16();
+                offset = file.GetUint32();
+
+                if (platform == 3 && encoding == 1) // Unicode 2 byte encoding for Basic Multilingual Plane
+                {
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) return ReadGlyphByIndex(0); // the specific 'missing' glyph
+            
+            // format 4 table
+            if (offset < file.Position()) {file.Seek(_tables["cmap"].Offset + offset); } // guessing
+            else { file.Seek(offset); }
+
+            var subtableFmt = file.GetUint16();
+
+            var byteLength = file.GetUint16();
+            var res1 = file.GetUint16(); // should be 0
+            var segCountX2 = file.GetUint16();
+            var searchRange = file.GetUint16();
+            var entrySelector = file.GetUint16();
+            var rangeShift = file.GetUint16();
+
+            if (subtableFmt != 4) throw new Exception("Invalid font: Unicode BMP table with non- format 4 subtable");
+            
+            // read the parallel arrays
+            var segs = segCountX2 / 2;
+            var endsBase = file.Position();
+            var startsBase = endsBase + segCountX2 + 2;
+            var idDeltaBase = startsBase + segCountX2;
+            var idRangeOffsetBase = idDeltaBase + segCountX2;
+
+            var targetSegment = -1;
+
+            var c = (int)wantedChar;
+
+            for (int i = 0; i < segs; i++)
+            {
+                int end = file.PickUint16(endsBase, i);
+                int start = file.PickUint16(startsBase, i);
+                if (end >= c && start <= c) {
+                    targetSegment = i;
+                    break;
+                }
+            }
+            
+            if (targetSegment < 0) return ReadGlyphByIndex(0); // the specific 'missing' glyph
+
+            var rangeOffset = file.PickUint16(idRangeOffsetBase, targetSegment);
+            if (rangeOffset == 0) {
+                // direct lookup:
+                var lu = file.PickUint16(idDeltaBase, targetSegment); // this can represent a negative by way of the modulo
+                var glyphIdx = (lu + c) % 65536;
+                return ReadGlyphByIndex(glyphIdx);
+            }
+
+            // Complex case. The TrueType spec expects us to have mapped the font into memory, then do some
+            // nasty pointer arithmetic. "This obscure indexing trick works because glyphIdArray immediately follows idRangeOffset in the font file"
+
+            var ros = file.PickUint16(idRangeOffsetBase, targetSegment) / 2; // UInt16 count
+            var chof = c - file.PickUint16(startsBase, targetSegment);
+            var basof = idRangeOffsetBase + (targetSegment * 2);
+
+            var idResult = file.PickUint16(ros+chof+basof, 0);
+            if (idResult > 0) {
+                var glyphIdx = (file.PickUint16(idDeltaBase,targetSegment) + idResult) % 65536;
+                return ReadGlyphByIndex(glyphIdx);
+            }
+
+            // Found nothing
+            return ReadGlyphByIndex(0); 
         }
 
 

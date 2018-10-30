@@ -36,23 +36,32 @@ namespace FontReader
         /// <summary>
         /// Return current position
         /// </summary>
-        public long Tell() => pos;
+        public long Position() => pos;
 
         /// <summary> Read an unsigned byte from current position and advance </summary>
         public int GetUint8(){ return data[pos++]; } 
         
         /// <summary> Read an unsigned 16bit word from current position and advance </summary>
-        public ushort GetUint16(){ return (ushort) ((GetUint8() * 256) + GetUint8()); }
+        public ushort GetUint16(){ return (ushort) ((GetUint8() << 8) + GetUint8()); }
 
-        /// <summary> Read an unsigned 16bit word from current position and advance </summary>
+        /// <summary> Read an unsigned 32bit word from current position and advance </summary>
         public uint GetUint32() { return (uint)GetInt32(); }
         
-        /// <summary> Read an signed 16bit word from current position and advance </summary>
+        /// <summary> Read a signed 16bit word from current position and advance </summary>
         public short GetInt16() {
             return (short)GetUint16();
         }
 
-        /// <summary> Read an signed 32bit word from current position and advance </summary>
+        
+        /// <summary> Read an unsigned 24bit word from current position and advance </summary>
+        public long GetUint24()
+        {
+            return (GetUint8() << 16) +
+                   (GetUint8() << 8) +
+                   GetUint8();
+        }
+
+        /// <summary> Read a signed 32bit word from current position and advance </summary>
         public long GetInt32()
         {
             return (GetUint8() << 24) +
@@ -101,6 +110,18 @@ namespace FontReader
         public void Skip(int dist)
         {
             pos += dist;
+        }
+
+        /// <summary>
+        /// Pick a UInt16 from an array at `baseAddr` with 0-based `index`.
+        /// This does NOT use or update the current position
+        /// </summary>
+        public ushort PickUint16(long baseAddr, int index)
+        {
+            var i = index*2;
+            var a = data[baseAddr+i];
+            var b = data[baseAddr+i+1];
+            return (ushort)((a << 8) + b);
         }
     }
 }
