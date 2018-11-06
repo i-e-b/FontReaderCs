@@ -253,6 +253,9 @@ namespace FontReader
         {
             // http://stevehanov.ca/blog/TrueType.js
             throw new Exception("Compounds not yet supported");
+            // A compound glyph brings together simple glphys from elsewhere in the font
+            // and combines them with transforms.
+            // If this method gets implemented, it should reduce the components down to a simple glyph
         }
 
         private Glyph EmptyGlyph(Glyph g)

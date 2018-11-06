@@ -7,8 +7,10 @@ namespace FontReader
 {
     public partial class Form1 : Form
     {
+        private static Pen ThinWhite;
         public Form1()
         {
+            ThinWhite = new Pen(Color.White, 0.125f);
             InitializeComponent();
             TestRun();
         }
@@ -25,7 +27,9 @@ namespace FontReader
 
             var msg_1 = "Hello, world! $ ▚ ¾ ∜";
             var msg_2 = "Got to be funky";
-            var msg_3 = "But, in a larger sense, we can not dedicate—we can not consecrate—we can not hallow—this ground. The brave men, living and dead, who struggled here, have consecrated it, far above our poor power to add or detract. The world will little note, nor long remember what we say here, but it can never forget what they did here.";
+            var msg_3 = "But, in a larger sense, we can not dedicate—we can not consecrate—we can not hallow—this ground. The brave men, living and dead,\n" +
+                        "who struggled here, have consecrated it, far above our poor power to add or detract. The world will little note, nor long remember\n" +
+                        "what we say here, but it can never forget what they did here.";
             float left = 25;
             float baseline = 150f;
             float scale = 0.03f;
@@ -65,6 +69,9 @@ namespace FontReader
                 letterSpace = 1;
                 for (int i = 0; i < msg_3.Length; i++)
                 {
+                    if (msg_3[i] == '\n') {
+                        left = 5; baseline += 16; continue;
+                    }
                     var glyph = daveFnt.ReadGlyph(msg_3[i]);
 
                     DrawGlyph(g, left, baseline, scale, glyph);
@@ -91,7 +98,7 @@ namespace FontReader
 
             while (p < glyph.Points.Length) {
                 var point = glyph.Points[p];
-                /*if (point.OnCurve) { ... }*/ // to handle control points
+                /*if (!point.OnCurve) { ... }*/ // to handle control points
                 prev = next;
                 next = new PointF((float) (dx + point.X * scale), (float) (dy - point.Y * scale)); // can adjust the X scale here to help with sub-pixel AA
 
@@ -116,10 +123,10 @@ namespace FontReader
 
         private static void ColorCodedLine(Graphics g, PointF prev, PointF next)
         {
-            // Green = winding increase, Red = Winding decrease. (Blue would be ignored in non-zero winding?)
-            if (prev.Y > next.Y) g.DrawLine(Pens.GreenYellow, prev, next);
-            else if (prev.Y == next.Y) g.DrawLine(Pens.LightSkyBlue, prev, next);
-            else g.DrawLine(Pens.Red, prev, next);
+            g.DrawLine(ThinWhite, prev, next);
+           /* if (prev.Y > next.Y) g.DrawLine(Pens.Yellow, prev, next);
+            else if (prev.Y == next.Y) g.DrawLine(Pens.White, prev, next);
+            else g.DrawLine(Pens.Cyan, prev, next);*/
         }
     }
 }
