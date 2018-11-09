@@ -86,8 +86,7 @@ namespace FontReader
         
         private void DrawGlyph(Bitmap img, float dx, float dy, float scale, Glyph glyph)
         {
-            var bmp = NonZeroWindingDraw.Render(glyph, scale);
-            var c = Color.White;
+            var bmp = NonZeroWindingDraw.Render(glyph, scale, out var baseline);
 
             for (int y = 0; y < bmp.GetLength(0); y++)
             {
@@ -100,60 +99,17 @@ namespace FontReader
                     var g = 0;
                     var b = 0;
 
-                    if ((v & NonZeroWindingDraw.WIND_DOWN) > 0) r += 125;
-                    if ((v & NonZeroWindingDraw.WIND_UP) > 0) g += 125;
+                    if ((v & NonZeroWindingDraw.WIND_DOWN) > 0) r = 255;
+                    if ((v & NonZeroWindingDraw.WIND_UP) > 0) g = 255;
                     //if ((v & NonZeroWindingDraw.WIND_LEFT) > 0) b += 125;
                     //if ((v & NonZeroWindingDraw.WIND_RITE) > 0) b += 125;
-                    //if ((v & NonZeroWindingDraw.TOUCHED) > 0) b += 125;
-                    if ((v & NonZeroWindingDraw.INSIDE) > 0) b = 255;
 
-                    img.SetPixel((int)dx+x, (int)dy-y, Color.FromArgb(r, g, b));
+                    if ((v & NonZeroWindingDraw.INSIDE) > 0) b=255;//{ r = 255; g = 255; b = 0; }
+                    //if ((v & NonZeroWindingDraw.TOUCHED) > 0) { r = 255; g = 0; b = 255; }
+
+                    img.SetPixel((int)dx + x, (int)(dy - y - baseline), Color.FromArgb(r, g, b));
                 }
             }
-        }
-
-        private void DrawGlyphOld(Graphics g, float dx, float dy, float scale, Glyph glyph)
-        {
-            if (glyph?.GlyphType != GlyphTypes.Simple) return;
-
-            var p = 0;
-            var c = 0;
-            var first = 1;
-            var close = new PointF();
-            var prev = new PointF();
-            var next = new PointF();
-
-            while (p < glyph.Points.Length) {
-                var point = glyph.Points[p];
-                /*if (!point.OnCurve) { ... }*/ // to handle control points
-                prev = next;
-                next = new PointF((float) (dx + point.X * scale), (float) (dy - point.Y * scale)); // can adjust the X scale here to help with sub-pixel AA
-
-                if (first == 1) {
-                    close = next;
-                    first = 0;
-                } else
-                {
-                    // currently totally ignores control points and curves
-                    ColorCodedLine(g, prev, next);
-                }
-
-                if (p == glyph.ContourEnds[c]) {
-                    ColorCodedLine(g, next, close); // ensure closed paths
-                    c++;
-                    first = 1;
-                }
-                
-                p++;
-            }
-        }
-
-        private static void ColorCodedLine(Graphics g, PointF prev, PointF next)
-        {
-            g.DrawLine(ThinWhite, prev, next);
-           /* if (prev.Y > next.Y) g.DrawLine(Pens.Yellow, prev, next);
-            else if (prev.Y == next.Y) g.DrawLine(Pens.White, prev, next);
-            else g.DrawLine(Pens.Cyan, prev, next);*/
         }
     }
 }

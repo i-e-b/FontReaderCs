@@ -1,10 +1,12 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Drawing;
 
 namespace FontReader.Draw
 {
     /// <summary>
     /// Render a single glyph using a non-zero-winding rule.
+    /// This is an experiment to use a simplistic line-then-scanline method
     /// </summary>
     public class NonZeroWindingDraw
     {
@@ -23,16 +25,18 @@ namespace FontReader.Draw
         /// </summary>
         /// <param name="glyph">Glyph to render</param>
         /// <param name="scale">Scale factor</param>
-        public static byte[,] Render(Glyph glyph, float scale){
+        /// <param name="baseline">Offset from grid bottom to baseline</param>
+        public static byte[,] Render(Glyph glyph, float scale, out float baseline){
+            baseline = 0;
             if (glyph == null) return null;
             if (glyph.GlyphType != GlyphTypes.Simple) return new byte[0, 0];
 
             // glyph sizes are not reliable for this.
             GetPointBounds(glyph, out var xmin, out var xmax, out var ymin, out var ymax);
+            baseline = (float) (ymin * scale);
 
-            // TODO: need some way of restoring the baseline -- this puts all chars to bottom
-            var width = (int)((xmax - xmin) * scale) * 2;
-            var height = (int)((ymax - ymin) * scale) * 2;
+            var width = (int)((xmax - xmin) * scale) + 2;
+            var height = (int)((ymax - ymin) * scale) + 2;
 
             var workspace = new byte[height, width];
 
@@ -60,11 +64,15 @@ namespace FontReader.Draw
                     var up = (v & WIND_UP) > 0;
                     var dn = (v & WIND_DOWN) > 0;
 
-                    if (up && dn) workspace[y,x] |= INSIDE;
+                    if (up && dn) {
+                        workspace[y,x] |= INSIDE;
+                        continue;
+                    }
 
-                    if (up) w++;
-                    if (dn) w--;
+                    if (up) w = 1;
+                    if (dn) w = 0;
                     if (w != 0) workspace[y,x] |= INSIDE;
+                    //if (w == 0) workspace[y,x] |= INSIDE; // inverted filling.
                 }
             }
         }
@@ -72,9 +80,9 @@ namespace FontReader.Draw
         private static void GetPointBounds(Glyph glyph, out double xmin, out double xmax, out double ymin, out double ymax)
         {
             xmin = 0d;
-            xmax = 10d;
+            xmax = 4d;
             ymin = 0d;
-            ymax = 10d;
+            ymax = 4d;
             if (glyph == null || glyph.Points == null) return;
             for (int i = 0; i < glyph.Points.Length; i++)
             {
@@ -95,9 +103,7 @@ namespace FontReader.Draw
 
             var p = 0;
             var c = 0;
-            var first = 1;
-            var close = new PointF();
-            var next = new PointF();
+            var contour = new List<PointF>();
 
             while (p < glyph.Points.Length)
             {
@@ -110,43 +116,82 @@ namespace FontReader.Draw
                     if (xpos < 0) xpos = 0;
                     if (ypos < 0) ypos = 0;
 
-                    var prev = next;
-                    next = new PointF((float)xpos, (float)ypos); // can adjust the X scale here to help with sub-pixel AA
-
-                    if (first == 1)
-                    {
-                        close = next;
-                        first = 0;
-                    }
-                    else
-                    {
-                        BresenhamWinding(workspace, prev, next);
-                    }
+                    contour.Add(new PointF((float)xpos, (float)ypos));
                 }
 
                 if (p == glyph.ContourEnds[c])
                 {
-                    BresenhamWinding(workspace, next, close); // ensure closed paths
+                    RenderContour(workspace, contour);
+                    contour.Clear();
                     c++;
-                    first = 1;
                 }
 
                 p++;
             }
         }
 
+        private static void RenderContour(byte[,] workspace, List<PointF> contour)
+        {
+            if (contour == null) return;
+            if (workspace == null) return;
+
+            var len = contour.Count;
+            for (int i = 1; i < len+1; i++)
+            {
+                var ptPrev = contour[(i - 1) % len];
+                var ptThis = contour[ i      % len];
+                var ptNext = contour[(i + 1) % len];
+
+                // Mark the lines between points, not including the points themselves
+                BresenhamWinding(workspace, ptThis, ptNext);
+
+                // Mark the inflection points directly
+                var xp = (int)ptPrev.X;
+                var yp = (int)ptPrev.Y;
+                var xi = (int)ptThis.X;
+                var yi = (int)ptThis.Y;
+                var xn = (int)ptNext.X;
+                var yn = (int)ptNext.Y;
+
+                if (workspace[yi,xi] == TOUCHED) continue;
+                workspace[yi,xi] |= TOUCHED;
+                // inspect each inflection
+                
+                if (yi < yp && yi < yn) workspace[yi,xi] |= WIND_DOWN | WIND_UP;
+                if (yi > yp && yi > yn) workspace[yi,xi] |= WIND_DOWN | WIND_UP;
+
+                // from point to next
+                if (xn > xi) workspace[yi,xi] |= WIND_RITE;
+                if (xn < xi) workspace[yi,xi] |= WIND_LEFT;
+                if (yn > yi) workspace[yi,xi] |= WIND_UP;
+                if (yn < yi) workspace[yi,xi] |= WIND_DOWN;
+                // from prev to point
+                if (xi > xp) workspace[yi,xi] |= WIND_RITE;
+                if (xi < xp) workspace[yi,xi] |= WIND_LEFT;
+                if (yi > yp) workspace[yi,xi] |= WIND_UP;
+                if (yi < yp) workspace[yi,xi] |= WIND_DOWN;
+                // from prev to next
+                if (xn > xp) workspace[yi,xi] |= WIND_RITE;
+                if (xn < xp) workspace[yi,xi] |= WIND_LEFT;
+                if (yn > yp) workspace[yi,xi] |= WIND_UP;
+                if (yn < yp) workspace[yi,xi] |= WIND_DOWN;
+                
+            } 
+                
+        }
+
         /// <summary>
-        /// Write winding directions between two points into the workspace
+        /// Write winding directions between two points into the workspace.
+        /// The first and last points are excluded, to be handled as special cases.
         /// </summary>
-        private static void BresenhamWinding(byte[,] workspace, PointF prev, PointF next)
+        private static void BresenhamWinding(byte[,] workspace, PointF start, PointF end)
         {
             if (workspace == null) return;
-            // for each point, bit-OR our decided direction onto the pixel
 
-            int x0 = (int)prev.X;
-            int y0 = (int)prev.Y;
-            int x1 = (int)next.X;
-            int y1 = (int)next.Y;
+            int x0 = (int)start.X;
+            int y0 = (int)start.Y;
+            int x1 = (int)end.X;
+            int y1 = (int)end.Y;
 
             int dx = x1-x0, sx = x0<x1 ? 1 : -1;
             int dy = y1-y0, sy = y0<y1 ? 1 : -1;
@@ -159,19 +204,20 @@ namespace FontReader.Draw
             if (dy == 0) yWindFlag = 0;
             if (dx == 0) xWindFlag = 0;
 
-            int pxFlag = xWindFlag | yWindFlag | TOUCHED; // TODO: set based on last point of prev line?
-
+            int pxFlag = workspace[y0, x0]; // exclude the first pixel (set equal to self)
+            //int pxFlag = yWindFlag | xWindFlag | TOUCHED; // assume first pixel makes a full movement
 
             int err = (dx>dy ? dx : -dy) / 2;
 
-            for(;;){
+            for(;;){ // for each point, bit-OR our decided direction onto the pixel
+                // end of line check
+                if (x0==x1 && y0==y1) break; // having the check before the write excludes the last pixel
+
                 // set pixel
-                workspace[y0, x0] |= (byte)pxFlag; // Just for test. TODO: work out winding
+                workspace[y0, x0] |= (byte)pxFlag;
 
                 pxFlag = TOUCHED;
 
-                // end of line check
-                if (x0==x1 && y0==y1) break;
                 var e2 = err;
                 if (e2 >-dx) { err -= dy; x0 += sx; pxFlag |= xWindFlag; }
                 if (e2 < dy) { err += dx; y0 += sy; pxFlag |= yWindFlag; }
