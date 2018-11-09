@@ -8,7 +8,7 @@ namespace FontReader.Draw
     /// Render a single glyph using a non-zero-winding rule.
     /// This is an experiment to use a simplistic line-then-scanline method
     /// </summary>
-    public class NonZeroWindingDraw
+    public class ScanlineRender
     {
         public const byte TOUCHED   = 0x01; // pixel has been processed
 
@@ -19,9 +19,10 @@ namespace FontReader.Draw
         public const byte WIND_LEFT = 0x10; // pixel X winding is 'left' (-1)
 
         public const byte INSIDE    = 0x20; // pixel is inside the glyph (for filling)
+        public const byte DROPOUT   = 0x40; // pixel *might* be a small feature drop-out
 
         /// <summary>
-        /// Render a glyph at the given scale. Result is a grid of alpha values: 0-for-out, 255-for-in.
+        /// Render a glyph at the given scale. Result is a grid of flag values.
         /// </summary>
         /// <param name="glyph">Glyph to render</param>
         /// <param name="scale">Scale factor</param>
@@ -69,10 +70,19 @@ namespace FontReader.Draw
                         continue;
                     }
 
-                    if (up) w = 1;
-                    if (dn) w = 0;
-                    if (w != 0) workspace[y,x] |= INSIDE;
-                    //if (w == 0) workspace[y,x] |= INSIDE; // inverted filling.
+                    if (up) {w++; continue; }
+                    if (dn && w > 0) {w--; continue; }
+
+                    if (w > 0) workspace[y,x] |= INSIDE;
+                }
+                // if we get here, and the scan line is still on, scan back to the last change turning it back off
+                if (w > 0) {
+                    var changeFlags = WIND_UP | WIND_DOWN | DROPOUT;
+                    for (int x = xmax-1; x > 0; x--)
+                    {
+                        if ((workspace[y,x] & changeFlags) > 0) break;
+                        workspace[y,x] ^= INSIDE;
+                    }
                 }
             }
         }
@@ -136,46 +146,11 @@ namespace FontReader.Draw
             if (workspace == null) return;
 
             var len = contour.Count;
-            for (int i = 1; i < len+1; i++)
+            for (int i = 0; i < len; i++)
             {
-                var ptPrev = contour[(i - 1) % len];
                 var ptThis = contour[ i      % len];
                 var ptNext = contour[(i + 1) % len];
-
-                // Mark the lines between points, not including the points themselves
                 BresenhamWinding(workspace, ptThis, ptNext);
-
-                // Mark the inflection points directly
-                var xp = (int)ptPrev.X;
-                var yp = (int)ptPrev.Y;
-                var xi = (int)ptThis.X;
-                var yi = (int)ptThis.Y;
-                var xn = (int)ptNext.X;
-                var yn = (int)ptNext.Y;
-
-                if (workspace[yi,xi] == TOUCHED) continue;
-                workspace[yi,xi] |= TOUCHED;
-                // inspect each inflection
-                
-                if (yi < yp && yi < yn) workspace[yi,xi] |= WIND_DOWN | WIND_UP;
-                if (yi > yp && yi > yn) workspace[yi,xi] |= WIND_DOWN | WIND_UP;
-
-                // from point to next
-                if (xn > xi) workspace[yi,xi] |= WIND_RITE;
-                if (xn < xi) workspace[yi,xi] |= WIND_LEFT;
-                if (yn > yi) workspace[yi,xi] |= WIND_UP;
-                if (yn < yi) workspace[yi,xi] |= WIND_DOWN;
-                // from prev to point
-                if (xi > xp) workspace[yi,xi] |= WIND_RITE;
-                if (xi < xp) workspace[yi,xi] |= WIND_LEFT;
-                if (yi > yp) workspace[yi,xi] |= WIND_UP;
-                if (yi < yp) workspace[yi,xi] |= WIND_DOWN;
-                // from prev to next
-                if (xn > xp) workspace[yi,xi] |= WIND_RITE;
-                if (xn < xp) workspace[yi,xi] |= WIND_LEFT;
-                if (yn > yp) workspace[yi,xi] |= WIND_UP;
-                if (yn < yp) workspace[yi,xi] |= WIND_DOWN;
-                
             } 
                 
         }
@@ -204,20 +179,21 @@ namespace FontReader.Draw
             if (dy == 0) yWindFlag = 0;
             if (dx == 0) xWindFlag = 0;
 
-            int pxFlag = workspace[y0, x0]; // exclude the first pixel (set equal to self)
-            //int pxFlag = yWindFlag | xWindFlag | TOUCHED; // assume first pixel makes a full movement
+            int pxFlag = yWindFlag | xWindFlag | TOUCHED; // assume first pixel makes a full movement
+
+            if (dy == 0 && dx == 0) pxFlag = DROPOUT | TOUCHED; // a single pixel. We mark for drop-out protection
 
             int err = (dx>dy ? dx : -dy) / 2;
 
             for(;;){ // for each point, bit-OR our decided direction onto the pixel
-                // end of line check
-                if (x0==x1 && y0==y1) break; // having the check before the write excludes the last pixel
 
                 // set pixel
                 workspace[y0, x0] |= (byte)pxFlag;
 
-                pxFlag = TOUCHED;
+                // end of line check
+                if (x0==x1 && y0==y1) break;
 
+                pxFlag = TOUCHED;
                 var e2 = err;
                 if (e2 >-dx) { err -= dy; x0 += sx; pxFlag |= xWindFlag; }
                 if (e2 < dy) { err += dx; y0 += sy; pxFlag |= yWindFlag; }
