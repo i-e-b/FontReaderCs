@@ -1,4 +1,5 @@
-﻿using System.Drawing;
+﻿using System;
+using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Windows.Forms;
@@ -28,7 +29,7 @@ namespace FontReader
 
             var msg_1 = "Hello, world! i$ ▚ ¾ ∜ -_¬~";
             var msg_2 = "Got to be funky";
-            var msg_3 = "But, in a larger sense, we can not dedicate—we can not consecrate—we can not hallow—this ground. The brave men, living and dead,\n" +
+            var msg_3 = "But, in a larger sense, we can not dedicate - we can not consecrate—we can not hallow—this ground. The brave men, living and dead,\n" +
                         "who struggled here, have consecrated it, far above our poor power to add or detract. The world will little note, nor long remember\n" +
                         "what we say here, but it can never forget what they did here.";
 
@@ -63,7 +64,7 @@ namespace FontReader
             // Draw a much longer message in the angular font
             left = 5;
             baseline = 50f;
-            scale = 0.01f;
+            scale = 0.01025f;
             letterSpace = 1;
             for (int i = 0; i < msg_3.Length; i++)
             {
@@ -83,56 +84,101 @@ namespace FontReader
             Height = img.Height + 41;
         }
 
-        
+
         private void DrawGlyph(Bitmap img, float dx, float dy, float scale, Glyph glyph)
         {
-            var bmp = ScanlineRender.Render(glyph, scale, out var baseline);
-
-            for (int y = 0; y < bmp.GetLength(0); y++)
+            try
             {
-                for (int x = 0; x < bmp.GetLength(1); x++)
+                // TODO: Move these rendering functions out of .Net code
+                if (scale <= 0.02f)
                 {
-                    var v = bmp[y,x];
+                    RenderSubPixel_RGB_Horz(img, dx, dy, scale, glyph); // Optimised for smaller sizes
+                }
+                else
+                {
+                    RenderSuperSampled(img, dx, dy, scale, glyph); // Optimised for larger sizes
+                }
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                // tried to write off the end of the img
+            }
+        }
+
+        /// <summary>
+        /// Render small font sizes with a rough sub-pixel algorithm. Tends to give sharp edges
+        /// </summary>
+        private static void RenderSubPixel_RGB_Horz(Bitmap img, float dx, float dy, float scale, Glyph glyph)
+        {
+            var bmp = ScanlineRender.Render(glyph, scale, out var baseline);
+            var height = bmp.GetLength(0);
+            var width = bmp.GetLength(1);
+
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    var v = bmp[y, x];
                     if (v == 0) continue;
 
-                    //RenderDiagnostics(img, dx, dy, v, x, y, baseline);
+                    var r = 0;
+                    var g = 0;
+                    var b = 0;
 
-                    if (scale < 0.02f)
+                    bool vert = false;
+                    var up = (v & ScanlineRender.DIR_UP) > 0;
+                    var down = (v & ScanlineRender.DIR_DOWN) > 0;
+                    var left = (v & ScanlineRender.DIR_LEFT) > 0;
+                    var right = (v & ScanlineRender.DIR_RIGHT) > 0;
+                    var inside = (v & ScanlineRender.INSIDE) > 0;
+
+                    if (up) { r += 0; g += 160; b += 255; vert = true; }
+                    else if (down) { r += 255; g += 100; b += 0; vert = true; }
+
+                    if (!vert)
                     {
-                        RenderSubPixel_RGB_Horz(img, dx, dy, v, x, y, baseline); // Optimised for smaller sizes
+                        if (right) { r += 127; g += 127; b += 127; } // top edge
+                        if (left) { r += 127; g += 127; b += 127; } // bottom edge
                     }
-                    else
-                    {
-                        RenderSimple(img, dx, dy, v, x, y, baseline); // Optimised for larger sizes
-                        //RenderDiagnostics(img, dx, dy, v, x, y, baseline); // Poor-man's ClearType
-                    }
+
+                    if (inside) { r += 255; g += 255; b += 255; }
+
+                    Saturate(ref r, ref g, ref b);
+
+                    if ((r + g + b) == 0 && (v & ScanlineRender.DROPOUT) > 0) { r += 255; g += 255; b += 255; }
+
+                    img.SetPixel((int)dx + x, (int)(dy - y - baseline), Color.FromArgb(r, g, b));
                 }
             }
         }
 
-        private static void RenderSubPixel_RGB_Horz(Bitmap img, float dx, float dy, byte v, int x, int y, float baseline)
+        /// <summary>
+        /// Smoothing renderer for larger sizes. Does not gurantee sharp pixel edges, loses edges on small sizes
+        /// </summary>
+        private static void RenderSuperSampled(Bitmap img, float dx, float dy, float scale, Glyph glyph)
         {
-            var r = 0;
-            var g = 0;
-            var b = 0;
+            // Render double-sized, then average back down
+            var bmp = ScanlineRender.Render(glyph, scale * 2, out var baseline);
+            var height = bmp.GetLength(0) / 2;
+            var width = bmp.GetLength(1) / 2;
+            baseline /= 2;
 
-            bool vert = false;
-            if ((v & ScanlineRender.WIND_UP) > 0) { r += 0; g += 127; b += 255; vert = true; }
-            if ((v & ScanlineRender.WIND_DOWN) > 0) { r += 255; g += 127; b += 0; vert = true; }
-
-            if (!vert)
+            for (int y = 0; y < height; y++)
             {
-                if ((v & ScanlineRender.WIND_LEFT) > 0) { r += 126; g += 126; b += 126; }
-                if ((v & ScanlineRender.WIND_RITE) > 0) { r += 126; g += 126; b += 126; }
+                for (int x = 0; x < width; x++)
+                {
+                    int v;
+                    v  = bmp[y*2  , x*2  ] & ScanlineRender.INSIDE; // based on `INSIDE` == 1
+                    v += bmp[y*2+1, x*2  ] & ScanlineRender.INSIDE;
+                    v += bmp[y*2  , x*2+1] & ScanlineRender.INSIDE;
+                    v += bmp[y*2+1, x*2+1] & ScanlineRender.INSIDE;
+
+                    if (v == 0) continue;
+                    v *= 63; // 255 / number-of-samples
+
+                    img.SetPixel((int)dx + x, (int)(dy - y - baseline), Color.FromArgb(v, v, v));
+                }
             }
-
-            if ((v & ScanlineRender.INSIDE) > 0) { r += 255; g += 255; b += 255; }
-
-            Saturate(ref r, ref g, ref b);
-
-            if ((r + g + b) == 0 && (v & ScanlineRender.DROPOUT) > 0) { r += 255; g += 255; b += 255; }
-
-            img.SetPixel((int) dx + x, (int) (dy - y - baseline), Color.FromArgb(r, g, b));
         }
 
         private static void Saturate(ref int r, ref int g, ref int b)
@@ -145,44 +191,5 @@ namespace FontReader
             if (b < 0) b = 0;
         }
 
-        private static void RenderSimple(Bitmap img, float dx, float dy, byte v, int x, int y, float baseline)
-        {
-            var r = 0;
-            var g = 0;
-            var b = 0;
-
-
-            if ((v & ScanlineRender.TOUCHED) > 0) { r += 255; g += 255; b += 255; }
-            if ((v & ScanlineRender.INSIDE) > 0) { r += 255; g += 255; b += 255; }
-            
-            if ((v & ScanlineRender.WIND_UP) > 0) { r *= 2; g *= 2; b *= 2; }
-            if ((v & ScanlineRender.WIND_DOWN) > 0) { r *= 2; g *= 2; b *= 2; }
-
-            if ((v & ScanlineRender.WIND_LEFT) > 0) { r /= 2; g /= 2; b /= 2; }
-            if ((v & ScanlineRender.WIND_RITE) > 0) { r /= 2; g /= 2; b /= 2; }
-            
-            Saturate(ref r, ref g, ref b);
-
-            img.SetPixel((int) dx + x, (int) (dy - y - baseline), Color.FromArgb(r, g, b));
-        }
-
-        private static void RenderDiagnostics(Bitmap img, float dx, float dy, byte v, int x, int y, float baseline)
-        {
-            var r = 0;
-            var g = 0;
-            var b = 0;
-
-            // Diagnostic colouring
-            if ((v & ScanlineRender.WIND_DOWN) > 0) r += 126;
-            if ((v & ScanlineRender.WIND_UP) > 0) g += 126;
-            if ((v & ScanlineRender.WIND_LEFT) > 0) b += 125;
-            if ((v & ScanlineRender.WIND_RITE) > 0) b += 125;
-
-            //if ((v & ScanlineRender.INSIDE) > 0) { r = 255; g = 255; b = 0; }
-
-            //if ((v & ScanlineRender.TOUCHED) > 0) { b = 255; }
-
-            img.SetPixel((int) dx + x, (int) (dy - y - baseline), Color.FromArgb(r, g, b));
-        }
     }
 }

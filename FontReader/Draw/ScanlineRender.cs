@@ -5,20 +5,19 @@ using System.Drawing;
 namespace FontReader.Draw
 {
     /// <summary>
-    /// Render a single glyph using a non-zero-winding rule.
-    /// This is an experiment to use a simplistic line-then-scanline method
+    /// Render a single glyph using a direction and scan-line rule.
     /// </summary>
     public class ScanlineRender
     {
-        public const byte TOUCHED   = 0x01; // pixel has been processed
+        public const byte INSIDE    = 0x01; // pixel is inside the glyph (for filling)
 
-        public const byte WIND_UP   = 0x02; // pixel Y winding is 'up' (+1)
-        public const byte WIND_DOWN = 0x04; // pixel Y winding is 'down' (-1)
+        public const byte DIR_UP    = 0x02; // pixel Y direction is 'up' (+1)
+        public const byte DIR_DOWN  = 0x04; // pixel Y direction is 'down' (-1)
 
-        public const byte WIND_RITE = 0x08; // pixel X winding is 'right' (+1)
-        public const byte WIND_LEFT = 0x10; // pixel X winding is 'left' (-1)
+        public const byte DIR_RIGHT = 0x08; // pixel X direction is 'right' (+1)
+        public const byte DIR_LEFT  = 0x10; // pixel X direction is 'left' (-1)
 
-        public const byte INSIDE    = 0x20; // pixel is inside the glyph (for filling)
+        public const byte TOUCHED   = 0x20; // pixel has been processed
         public const byte DROPOUT   = 0x40; // pixel *might* be a small feature drop-out
 
         /// <summary>
@@ -34,7 +33,8 @@ namespace FontReader.Draw
 
             // glyph sizes are not reliable for this.
             GetPointBounds(glyph, out var xmin, out var xmax, out var ymin, out var ymax);
-            baseline = (float) (ymin * scale);
+            //baseline = (float) (ymin * scale);
+            baseline = (float) (glyph.yMin * scale);
 
             var width = (int)((xmax - xmin) * scale) + 2;
             var height = (int)((ymax - ymin) * scale) + 2;
@@ -54,30 +54,37 @@ namespace FontReader.Draw
         {
             if (workspace == null) return;
             var ymax = workspace.GetLength(0);
-            var xmax = workspace.GetLength(1);
+            var xmax = workspace.GetLength(1) - 1; // space to look ahead
 
             for (int y = 0; y < ymax; y++)
             {
                 int w = 0;
+                bool prevUp = false;
                 for (int x = 0; x < xmax; x++)
                 {
                     var v = workspace[y,x];
-                    var up = (v & WIND_UP) > 0;
-                    var dn = (v & WIND_DOWN) > 0;
+                    var up = (v & DIR_UP) > 0;
+                    var dn = (v & DIR_DOWN) > 0;
 
                     if (up && dn) {
+                        prevUp = false;
                         workspace[y,x] |= INSIDE;
                         continue;
                     }
 
-                    if (up) {w++; continue; }
-                    if (dn && w > 0) {w--; continue; }
+                    if (up) {w=1; }
+                    if (dn) {w=0; }
 
-                    if (w > 0) workspace[y,x] |= INSIDE;
+                    var nextUp =  (workspace[y,x+1] & DIR_UP) > 0;
+                    var nextDown =  (workspace[y,x+1] & DIR_DOWN) > 0;
+
+                    if (!up && !dn && w > 0) workspace[y, x] |= INSIDE;
+                    if (prevUp && dn && nextDown && !nextUp) workspace[y, x] |= INSIDE;
+                    prevUp = up;
                 }
                 // if we get here, and the scan line is still on, scan back to the last change turning it back off
                 if (w > 0) {
-                    var changeFlags = WIND_UP | WIND_DOWN | DROPOUT;
+                    var changeFlags = DIR_UP | DIR_DOWN | DROPOUT;
                     for (int x = xmax-1; x > 0; x--)
                     {
                         if ((workspace[y,x] & changeFlags) > 0) break;
@@ -150,16 +157,14 @@ namespace FontReader.Draw
             {
                 var ptThis = contour[ i      % len];
                 var ptNext = contour[(i + 1) % len];
-                BresenhamWinding(workspace, ptThis, ptNext);
+                DirectionalBresenham(workspace, ptThis, ptNext);
             } 
-                
         }
 
         /// <summary>
-        /// Write winding directions between two points into the workspace.
-        /// The first and last points are excluded, to be handled as special cases.
+        /// Write directions between two points into the workspace.
         /// </summary>
-        private static void BresenhamWinding(byte[,] workspace, PointF start, PointF end)
+        private static void DirectionalBresenham(byte[,] workspace, PointF start, PointF end)
         {
             if (workspace == null) return;
 
@@ -174,8 +179,8 @@ namespace FontReader.Draw
             if (dy < 0) dy = -dy;
 
             // set the winding flags we are going to set based on `sx` and `sy`
-            byte xWindFlag = sx < 0 ? WIND_LEFT : WIND_RITE;
-            byte yWindFlag = sy < 0 ? WIND_DOWN : WIND_UP;
+            byte xWindFlag = sx < 0 ? DIR_LEFT : DIR_RIGHT;
+            byte yWindFlag = sy < 0 ? DIR_DOWN : DIR_UP;
             if (dy == 0) yWindFlag = 0;
             if (dx == 0) xWindFlag = 0;
 
