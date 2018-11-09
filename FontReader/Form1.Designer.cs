@@ -38,8 +38,8 @@
             this.outputPictureBox.Dock = System.Windows.Forms.DockStyle.Fill;
             this.outputPictureBox.Location = new System.Drawing.Point(0, 0);
             this.outputPictureBox.Name = "outputPictureBox";
-            this.outputPictureBox.Size = new System.Drawing.Size(800, 450);
-            this.outputPictureBox.SizeMode = System.Windows.Forms.PictureBoxSizeMode.CenterImage;
+            this.outputPictureBox.Size = new System.Drawing.Size(1097, 450);
+            this.outputPictureBox.SizeMode = System.Windows.Forms.PictureBoxSizeMode.StretchImage;
             this.outputPictureBox.TabIndex = 0;
             this.outputPictureBox.TabStop = false;
             // 
@@ -47,7 +47,7 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(800, 450);
+            this.ClientSize = new System.Drawing.Size(1097, 450);
             this.Controls.Add(this.outputPictureBox);
             this.Name = "Form1";
             this.Text = "Form1";

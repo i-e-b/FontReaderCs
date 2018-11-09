@@ -24,9 +24,10 @@ namespace FontReader.Draw
         /// Render a glyph at the given scale. Result is a grid of flag values.
         /// </summary>
         /// <param name="glyph">Glyph to render</param>
-        /// <param name="scale">Scale factor</param>
+        /// <param name="xScale">Scale factor</param>
+        /// <param name="yScale">Scale factor</param>
         /// <param name="baseline">Offset from grid bottom to baseline</param>
-        public static byte[,] Render(Glyph glyph, float scale, out float baseline){
+        public static byte[,] Render(Glyph glyph, float xScale, float yScale, out float baseline){
             baseline = 0;
             if (glyph == null) return null;
             if (glyph.GlyphType != GlyphTypes.Simple) return new byte[0, 0];
@@ -34,15 +35,15 @@ namespace FontReader.Draw
             // glyph sizes are not reliable for this.
             GetPointBounds(glyph, out var xmin, out var xmax, out var ymin, out var ymax);
             //baseline = (float) (ymin * scale);
-            baseline = (float) (glyph.yMin * scale);
+            baseline = (float) (glyph.yMin * yScale);
 
-            var width = (int)((xmax - xmin) * scale) + 2;
-            var height = (int)((ymax - ymin) * scale) + 2;
+            var width = (int)((xmax - xmin) * xScale) + 2;
+            var height = (int)((ymax - ymin) * yScale) + 2;
 
             var workspace = new byte[height, width];
 
             // 1. Walk around all the contours, setting scan-line winding data.
-            WalkContours(glyph, scale, workspace);
+            WalkContours(glyph, xScale, yScale, workspace);
 
             // 2. Run each scanline, filling where sum of winding is != 0
             FillScans(workspace);
@@ -112,7 +113,7 @@ namespace FontReader.Draw
             }
         }
 
-        private static void WalkContours(Glyph glyph, float scale, byte[,] workspace)
+        private static void WalkContours(Glyph glyph, float xScale, float yScale, byte[,] workspace)
         {
             if (glyph == null) return;
             if (glyph.Points == null || glyph.Points.Length < 1) return;
@@ -127,8 +128,8 @@ namespace FontReader.Draw
                 var point = glyph.Points[p];
                 if (point != null)
                 {
-                    var xpos = (point.X - glyph.xMin) * scale;
-                    var ypos = (point.Y - glyph.yMin) * scale;
+                    var xpos = (point.X - glyph.xMin) * xScale;
+                    var ypos = (point.Y - glyph.yMin) * yScale;
 
                     if (xpos < 0) xpos = 0;
                     if (ypos < 0) ypos = 0;
