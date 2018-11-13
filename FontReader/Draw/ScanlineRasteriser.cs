@@ -7,7 +7,7 @@ namespace FontReader.Draw
     /// <summary>
     /// Render a single glyph using a direction and scan-line rule.
     /// </summary>
-    public class ScanlineRender
+    public class ScanlineRasteriser
     {
         public const byte INSIDE    = 0x01; // pixel is inside the glyph (for filling)
 

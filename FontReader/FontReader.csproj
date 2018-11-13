@@ -46,7 +46,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Draw\ScanlineRender.cs" />
+    <Compile Include="Draw\Renderers.cs" />
+    <Compile Include="Draw\ScanlineRasteriser.cs" />
     <Compile Include="Read\BinaryReader.cs" />
     <Compile Include="Read\CompoundGlyphFlags.cs" />
     <Compile Include="Read\FontHeader.cs" />
