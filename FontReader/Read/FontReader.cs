@@ -21,6 +21,14 @@ namespace FontReader
         private int _length;
 
         
+        /// <summary>
+        /// Get the reported overall height of the font
+        /// </summary>
+        public float Height()
+        {
+            return (float)_header.xMax - _header.xMin;
+        }
+        
         public Glyph ReadGlyphByIndex(int index, bool forceEmpty)
         {
             var offset = GetGlyphOffset(index);
@@ -304,6 +312,9 @@ namespace FontReader
 
             g.Points = points.ToArray();
             g.ContourEnds = ends.ToArray();
+
+            // TODO: expand glyph curves into paths?
+            // Maybe have another level after finding glyphs, and before rendering
 
             return g;
         }

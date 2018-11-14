@@ -46,6 +46,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Draw\BitmapProxy.cs" />
     <Compile Include="Draw\Renderers.cs" />
     <Compile Include="Draw\ScanlineRasteriser.cs" />
     <Compile Include="Read\BinaryReader.cs" />

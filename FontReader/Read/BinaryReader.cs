@@ -17,6 +17,7 @@ namespace FontReader
         /// </summary>
         public BinaryReader(string filename)
         {
+            if (filename == null || !File.Exists(filename)) throw new Exception("Could not read font file");
             data = File.ReadAllBytes(filename);
             if (data == null) throw new Exception("Failed to read file");
 
