@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Drawing.Imaging;
 using System.Windows.Forms;
 using FontReader.Draw;
+using FontReader.Read;
 
 namespace FontReader
 {
@@ -25,10 +26,10 @@ namespace FontReader
 
             var daveFnt = new TrueTypeFont("dave.ttf"); // a font that uses only straight edges (easy to render)
             //var daveFnt = new TrueTypeFont(@"C:\Temp\what.bin"); // other fonts
-            var guthenFnt = new TrueTypeFont("guthen_bloots.ttf"); // a very curvy font (control points not yet supported)
+            var guthenFnt = new TrueTypeFont("guthen_bloots.ttf"); // a curvy font
 
             var msg_1 = "Hello, world! i0($} ▚ ¾ ∜ -_¬~";
-            var msg_2 = "Got to be funky";
+            var msg_2 = "Got to be funky. CQUPOJ8";
             var msg_3 = "0123456789\nBut, in a larger sense, we can not dedicate - we can not consecrate—we can not hallow—this ground. The brave men,\n" +
                         "living and dead, who struggled here, have consecrated it, far above our poor power to add or detract. The world will\n" +
                         "little note, nor long remember what we say here, but it can never forget what they did here.";
@@ -127,8 +128,8 @@ namespace FontReader
             
             // Large black-on-white
             left = 25;
-            baseline = 500f;
-            scale = 48f / daveFnt.Height();
+            baseline = 540f;
+            scale = 70f / daveFnt.Height();
             letterSpace = 5;
             for (int i = 0; i < msg_1.Length; i++)
             {

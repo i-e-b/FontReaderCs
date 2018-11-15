@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace FontReader
+namespace FontReader.Read
 {
     public class TrueTypeFont : IFontReader
     {

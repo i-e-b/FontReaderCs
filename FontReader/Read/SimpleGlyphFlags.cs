@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace FontReader
+namespace FontReader.Read
 {
     [Flags]
     public enum SimpleGlyphFlags : byte

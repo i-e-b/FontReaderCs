@@ -1,13 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using FontReader.Read;
 
 namespace FontReader.Draw
 {
     /// <summary>
     /// Render a single glyph using a direction and scan-line rule.
     /// </summary>
-    public class ScanlineRasteriser
+    public class BresenhamEdgeRasteriser
     {
         public const byte INSIDE    = 0x01; // pixel is inside the glyph (for filling)
 
@@ -84,14 +85,14 @@ namespace FontReader.Draw
                     prevUp = up;
                 }
                 // if we get here, and the scan line is still on, scan back to the last change turning it back off
-                if (w > 0) {
+                /*if (w > 0) {
                     var changeFlags = DIR_UP | DIR_DOWN | DROPOUT;
                     for (int x = xmax-1; x > 0; x--)
                     {
                         if ((workspace[y,x] & changeFlags) > 0) break;
                         workspace[y,x] ^= INSIDE;
                     }
-                }
+                }*/
             }
         }
 
@@ -119,41 +120,19 @@ namespace FontReader.Draw
             if (glyph.Points == null || glyph.Points.Length < 1) return;
             if (glyph.ContourEnds == null || glyph.ContourEnds.Length < 1) return;
 
-            var p = 0;
-            var c = 0;
-            var contour = new List<PointF>();
-
-            while (p < glyph.Points.Length)
+            var contours = glyph.NormalisedContours(xScale, yScale);
+            foreach (var contour in contours)
             {
-                var point = glyph.Points[p];
-                if (point != null)
-                {
-                    var xpos = (point.X - glyph.xMin) * xScale;
-                    var ypos = (point.Y - glyph.yMin) * yScale;
-
-                    if (xpos < 0) xpos = 0;
-                    if (ypos < 0) ypos = 0;
-
-                    contour.Add(new PointF((float)xpos, (float)ypos));
-                }
-
-                if (p == glyph.ContourEnds[c])
-                {
-                    RenderContour(workspace, contour);
-                    contour.Clear();
-                    c++;
-                }
-
-                p++;
+                RenderContour(workspace, contour);
             }
         }
 
-        private static void RenderContour(byte[,] workspace, List<PointF> contour)
+        private static void RenderContour(byte[,] workspace, GlyphPoint[] contour)
         {
             if (contour == null) return;
             if (workspace == null) return;
 
-            var len = contour.Count;
+            var len = contour.Length;
             for (int i = 0; i < len; i++)
             {
                 var ptThis = contour[ i      % len];
@@ -165,9 +144,12 @@ namespace FontReader.Draw
         /// <summary>
         /// Write directions between two points into the workspace.
         /// </summary>
-        private static void DirectionalBresenham(byte[,] workspace, PointF start, PointF end)
+        private static void DirectionalBresenham(byte[,] workspace, GlyphPoint start, GlyphPoint end)
         {
             if (workspace == null) return;
+
+            var ddx = end.X - start.X;
+            var ddy = end.Y - start.Y;
 
             int x0 = (int)start.X;
             int y0 = (int)start.Y;
@@ -179,15 +161,15 @@ namespace FontReader.Draw
             if (dx < 0) dx = -dx;
             if (dy < 0) dy = -dy;
 
-            // set the winding flags we are going to set based on `sx` and `sy`
-            byte xWindFlag = sx < 0 ? DIR_LEFT : DIR_RIGHT;
-            byte yWindFlag = sy < 0 ? DIR_DOWN : DIR_UP;
+            byte xWindFlag = ddx < 0 ? DIR_LEFT : DIR_RIGHT;
+            byte yWindFlag = ddy < 0 ? DIR_DOWN : DIR_UP;
             if (dy == 0) yWindFlag = 0;
             if (dx == 0) xWindFlag = 0;
 
             int pxFlag = yWindFlag | xWindFlag | TOUCHED; // assume first pixel makes a full movement
 
-            if (dy == 0 && dx == 0) pxFlag = DROPOUT | TOUCHED; // a single pixel. We mark for drop-out protection
+            if (dy == 0 && dx == 0)
+                pxFlag |= DROPOUT; // a single pixel. We mark for drop-out protection
 
             int err = (dx>dy ? dx : -dy) / 2;
 

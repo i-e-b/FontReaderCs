@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace FontReader
+namespace FontReader.Read
 {
     /// <summary>
     /// Details from the TTF header block

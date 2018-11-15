@@ -1,4 +1,4 @@
-﻿namespace FontReader
+﻿namespace FontReader.Read
 {
     public enum GlyphTypes
     {

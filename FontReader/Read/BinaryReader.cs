@@ -3,7 +3,7 @@ using System.IO;
 using System.Text;
 
 // http://stevehanov.ca/blog/TrueType.js
-namespace FontReader
+namespace FontReader.Read
 {
     /// <summary>
     /// Byte reader for TTF / OpenType files
