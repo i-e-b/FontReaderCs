@@ -96,7 +96,6 @@ namespace FontReader.Read
                 var dx = prev.X - next.X;
                 var dy = prev.Y - next.Y;
                 var distSq = (dx*dx) + (dy*dy);
-                
 
                 if (distSq < 8)
                 {
@@ -108,7 +107,7 @@ namespace FontReader.Read
                 {
                     var m0 = mid;
                     final.Add(new GlyphPoint { OnCurve = true, X = (prev.X + m0.X) / 2.0, Y = (prev.Y + m0.Y) / 2.0 });
-                    final.Add(new GlyphPoint{ OnCurve = true, X = (next.X + m0.X) / 2.0, Y = (next.Y + m0.Y) / 2.0});
+                    final.Add(new GlyphPoint { OnCurve = true, X = (next.X + m0.X) / 2.0, Y = (next.Y + m0.Y) / 2.0 });
                 }
             }
 

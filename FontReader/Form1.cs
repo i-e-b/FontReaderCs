@@ -26,6 +26,7 @@ namespace FontReader
 
             var daveFnt = new TrueTypeFont("dave.ttf"); // a font that uses only straight edges (easy to render)
             //var daveFnt = new TrueTypeFont(@"C:\Temp\what.bin"); // other fonts
+            var bendy = new TrueTypeFont("bendy.ttf"); // a font with extreme curves for testing segmentation
             var guthenFnt = new TrueTypeFont("guthen_bloots.ttf"); // a curvy font
 
             var msg_1 = "Hello, world! i0($} ▚ ¾ ∜ -_¬~";
@@ -33,6 +34,7 @@ namespace FontReader
             var msg_3 = "0123456789\nBut, in a larger sense, we can not dedicate - we can not consecrate—we can not hallow—this ground. The brave men,\n" +
                         "living and dead, who struggled here, have consecrated it, far above our poor power to add or detract. The world will\n" +
                         "little note, nor long remember what we say here, but it can never forget what they did here.";
+            var msg_4 = "ABCDE";
 
 
             // Draw first message with angular font
@@ -56,6 +58,19 @@ namespace FontReader
             for (int i = 0; i < msg_2.Length; i++)
             {
                 var glyph = guthenFnt.ReadGlyph(msg_2[i]);
+
+                DrawGlyph(img, left, baseline, scale, glyph, false);
+                left += (float)glyph.xMax * scale;
+                left += letterSpace;
+            }
+            
+            // Draw second message with very curvy font
+            //left = 250;
+            baseline = 250f;
+            scale = 0.05f;
+            for (int i = 0; i < msg_4.Length; i++)
+            {
+                var glyph = bendy.ReadGlyph(msg_4[i]);
 
                 DrawGlyph(img, left, baseline, scale, glyph, false);
                 left += (float)glyph.xMax * scale;
@@ -152,9 +167,7 @@ namespace FontReader
                 var prox = new FormsBitmap(img);
                 if (scale <= 0.04f) // Optimised for smaller sizes
                 {
-                    //RenderSubPixel_RGB_Super2(img, dx, dy, scale, glyph);
                     Renderers.RenderSubPixel_RGB_Super3(prox, dx, dy, scale, glyph, inverted);
-                    //RenderSubPixel_RGB_Edge(img, dx, dy, scale, glyph);
                 }
                 else // Optimised for larger sizes
                 {
