@@ -47,6 +47,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Draw\BitmapProxy.cs" />
+    <Compile Include="Draw\OrthagonalDistanceRasteriser.cs" />
     <Compile Include="Draw\Renderers.cs" />
     <Compile Include="Draw\BresenhamEdgeRasteriser.cs" />
     <Compile Include="Read\BinaryReader.cs" />
@@ -87,6 +88,9 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Include="guthen_bloots.ttf">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Include="NotoSans-Regular.ttf">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Include="Properties\Settings.settings">

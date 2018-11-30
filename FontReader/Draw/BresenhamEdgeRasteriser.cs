@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Drawing;
-using FontReader.Read;
+﻿using FontReader.Read;
 
 namespace FontReader.Draw
 {
@@ -28,23 +25,27 @@ namespace FontReader.Draw
         /// <param name="xScale">Scale factor</param>
         /// <param name="yScale">Scale factor</param>
         /// <param name="baseline">Offset from grid bottom to baseline</param>
-        public static byte[,] Render(Glyph glyph, float xScale, float yScale, out float baseline){
+        /// <param name="leftShift">Offset from grid left to character left</param>
+        public static byte[,] Render(Glyph glyph, float xScale, float yScale, out float baseline, out float leftShift){
             baseline = 0;
+            leftShift = 0;
             if (glyph == null) return null;
             if (glyph.GlyphType != GlyphTypes.Simple) return new byte[0, 0];
 
             // glyph sizes are not reliable for this.
-            GetPointBounds(glyph, out var xmin, out var xmax, out var ymin, out var ymax);
-            //baseline = (float) (ymin * scale);
+            glyph.GetPointBounds(out var xmin, out var xmax, out var ymin, out var ymax);
+
             baseline = (float) (glyph.yMin * yScale);
+            leftShift = (float)(-glyph.xMin * xScale * 0.5); // I guess the 0.5 fudge-factor is due to lack of kerning support
 
             var width = (int)((xmax - xmin) * xScale) + 2;
             var height = (int)((ymax - ymin) * yScale) + 2;
+            var yAdjust = (baseline < 0) ? -0.5f : 0.0f;
 
             var workspace = new byte[height, width];
 
             // 1. Walk around all the contours, setting scan-line winding data.
-            WalkContours(glyph, xScale, yScale, workspace);
+            WalkContours(glyph, xScale, yScale, yAdjust, workspace);
 
             // 2. Run each scanline, filling where sum of winding is != 0
             FillScans(workspace);
@@ -84,43 +85,17 @@ namespace FontReader.Draw
                     if (prevUp && dn && nextDown && !nextUp) workspace[y, x] |= INSIDE;
                     prevUp = up;
                 }
-                // if we get here, and the scan line is still on, scan back to the last change turning it back off
-                /*if (w > 0) {
-                    var changeFlags = DIR_UP | DIR_DOWN | DROPOUT;
-                    for (int x = xmax-1; x > 0; x--)
-                    {
-                        if ((workspace[y,x] & changeFlags) > 0) break;
-                        workspace[y,x] ^= INSIDE;
-                    }
-                }*/
             }
         }
 
-        private static void GetPointBounds(Glyph glyph, out double xmin, out double xmax, out double ymin, out double ymax)
-        {
-            xmin = 0d;
-            xmax = 4d;
-            ymin = 0d;
-            ymax = 4d;
-            if (glyph == null || glyph.Points == null) return;
-            for (int i = 0; i < glyph.Points.Length; i++)
-            {
-                var p = glyph.Points[i];
-                if (p == null) continue;
-                xmin = Math.Min(p.X, xmin);
-                xmax = Math.Max(p.X, xmax);
-                ymin = Math.Min(p.Y, ymin);
-                ymax = Math.Max(p.Y, ymax);
-            }
-        }
-
-        private static void WalkContours(Glyph glyph, float xScale, float yScale, byte[,] workspace)
+        private static void WalkContours(Glyph glyph, float xScale, float yScale, float yAdjust, byte[,] workspace)
         {
             if (glyph == null) return;
             if (glyph.Points == null || glyph.Points.Length < 1) return;
             if (glyph.ContourEnds == null || glyph.ContourEnds.Length < 1) return;
 
-            var contours = glyph.NormalisedContours(xScale, yScale);
+            var contours = glyph.NormalisedContours(xScale, yScale, 0, yAdjust);
+            if (contours == null) return;
             foreach (var contour in contours)
             {
                 RenderContour(workspace, contour);
@@ -146,7 +121,7 @@ namespace FontReader.Draw
         /// </summary>
         private static void DirectionalBresenham(byte[,] workspace, GlyphPoint start, GlyphPoint end)
         {
-            if (workspace == null) return;
+            if (workspace == null || start == null || end == null) return;
 
             var ddx = end.X - start.X;
             var ddy = end.Y - start.Y;

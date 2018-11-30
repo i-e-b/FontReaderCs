@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 
 namespace FontReader.Read
 {
@@ -29,7 +30,7 @@ namespace FontReader.Read
         /// Reduce the glyph to a set of simple point contours.
         /// Curves will be re-drawn as segments
         /// </summary>
-        public List<GlyphPoint[]> NormalisedContours(double xScale, double yScale) {
+        public List<GlyphPoint[]> NormalisedContours(double xScale, double yScale, double xOffset, double yOffset) {
             if (Points == null || Points.Length < 1) return null;
             if (ContourEnds == null || ContourEnds.Length < 1) return null;
 
@@ -54,7 +55,7 @@ namespace FontReader.Read
                     if (xpos < 0) xpos = 0;
                     if (ypos < 0) ypos = 0;
 
-                    contour.Add(new GlyphPoint { X = xpos, Y = ypos, OnCurve = point.OnCurve });
+                    contour.Add(new GlyphPoint { X = xpos + xOffset, Y = ypos + yOffset, OnCurve = point.OnCurve });
                 }
 
                 if (p == ContourEnds[c])
@@ -74,9 +75,31 @@ namespace FontReader.Read
         }
 
         /// <summary>
+        /// Return the boundaries of the points on this glyph.
+        /// This ignored the stated min/max bounds for positioning
+        /// </summary>
+        public void GetPointBounds(out double xmin, out double xmax, out double ymin, out double ymax)
+        {
+            xmin = 0d;
+            xmax = 4d;
+            ymin = 0d;
+            ymax = 4d;
+            if (Points == null) return;
+            for (int i = 0; i < Points.Length; i++)
+            {
+                var p = Points[i];
+                if (p == null) continue;
+                xmin = Math.Min(p.X, xmin);
+                xmax = Math.Max(p.X, xmax);
+                ymin = Math.Min(p.Y, ymin);
+                ymax = Math.Max(p.Y, ymax);
+            }
+        }
+
+        /// <summary>
         /// break curves into segments where needed
         /// </summary>
-        private GlyphPoint[] NormaliseContour(List<GlyphPoint> contour)
+        private GlyphPoint[] NormaliseContour(IReadOnlyList<GlyphPoint> contour)
         {
             var final = new List<GlyphPoint>();
             var len = contour.Count;
@@ -97,6 +120,7 @@ namespace FontReader.Read
                 var dy = prev.Y - next.Y;
                 var distSq = (dx*dx) + (dy*dy);
 
+                // TODO: this really isn't good enough.
                 if (distSq < 8)
                 {
                     final.Add(new GlyphPoint { OnCurve = true,

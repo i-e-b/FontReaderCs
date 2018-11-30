@@ -26,7 +26,12 @@ namespace FontReader.Read
         /// </summary>
         public float Height()
         {
-            return (float)_header.xMax - _header.xMin;
+            // Use what the font headers say:
+            //return (float)_header.xMax + _header.xMin;
+
+            // Ignoring font declaration, guess based on a character height
+            ReadGlyph('x').GetPointBounds(out _, out _, out _, out var yMax);
+            return (float)yMax * 2.0f;
         }
         
         public Glyph ReadGlyphByIndex(int index, bool forceEmpty)
@@ -257,11 +262,14 @@ namespace FontReader.Read
             return sum;
         }
 
-        private Glyph ReadCompoundGlyph(Glyph glyph, long baseOffset)
+        private Glyph ReadCompoundGlyph(Glyph g, long baseOffset)
         {
             // http://stevehanov.ca/blog/TrueType.js
-            throw new Exception("Compounds not yet supported");
-            // A compound glyph brings together simple glphys from elsewhere in the font
+            g.GlyphType = GlyphTypes.Empty;
+            return g;
+            //throw new Exception("Compounds not yet supported");
+
+            // A compound glyph brings together simple glyphs from elsewhere in the font
             // and combines them with transforms.
             // If this method gets implemented, it should reduce the components down to a simple glyph
         }

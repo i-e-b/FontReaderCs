@@ -14,9 +14,10 @@ namespace FontReader.Draw
         public static void RenderSubPixel_RGB_Super3(BitmapProxy img, float dx, float dy, float scale, Glyph glyph, bool inverted)
         {
             const int bright = 17;
-            var bmp = BresenhamEdgeRasteriser.Render(glyph, scale * 3, scale, out var baseline);
+            var bmp = BresenhamEdgeRasteriser.Render(glyph, scale * 3, scale, out var baseline, out var leftShift);
             var height = bmp.GetLength(0);
             var width = bmp.GetLength(1) / 3;
+            if (baseline*baseline < 1) baseline = 0;
 
             var topsFlag = BresenhamEdgeRasteriser.DIR_RIGHT | BresenhamEdgeRasteriser.DIR_LEFT | BresenhamEdgeRasteriser.DROPOUT;
 
@@ -42,7 +43,7 @@ namespace FontReader.Draw
                         && (_3 & BresenhamEdgeRasteriser.INSIDE) > 0
                         ) {
                         var v = inverted ? 0 : 255;
-                        img.SetPixel((int)dx + x, (int)(dy - y - baseline), v, v, v);
+                        img.SetPixel((int)(dx + x - leftShift), (int)(dy - y - baseline), v, v, v);
                         continue;
                     }
                     var topS = 3;
@@ -96,60 +97,7 @@ namespace FontReader.Draw
 
                     Saturate(ref r, ref g, ref b);
 
-                    img.SetPixel((int)dx + x, (int)(dy - y - baseline), r, g, b);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Render small font sizes with a rough sub-pixel algorithm, based on edge direction.
-        /// </summary>
-        public static void RenderSubPixel_RGB_Edge(BitmapProxy img, float dx, float dy, float scale, Glyph glyph, bool inverted)
-        {
-            var bmp = BresenhamEdgeRasteriser.Render(glyph, scale, scale, out var baseline);
-            var height = bmp.GetLength(0);
-            var width = bmp.GetLength(1);
-
-            for (int y = 0; y < height; y++)
-            {
-                for (int x = 0; x < width; x++)
-                {
-                    var v = bmp[y, x];
-                    if (v == 0) continue;
-
-                    var r = 0;
-                    var g = 0;
-                    var b = 0;
-
-                    bool vert = false;
-                    var up = (v & BresenhamEdgeRasteriser.DIR_UP) > 0;
-                    var down = (v & BresenhamEdgeRasteriser.DIR_DOWN) > 0;
-                    var left = (v & BresenhamEdgeRasteriser.DIR_LEFT) > 0;
-                    var right = (v & BresenhamEdgeRasteriser.DIR_RIGHT) > 0;
-                    var inside = (v & BresenhamEdgeRasteriser.INSIDE) > 0;
-
-                    if (up) { r += 0; g += 160; b += 255; vert = true; }
-                    else if (down) { r += 255; g += 100; b += 0; vert = true; }
-
-                    if (!vert)
-                    {
-                        if (right) { r += 127; g += 127; b += 127; } // top edge
-                        if (left) { r += 127; g += 127; b += 127; } // bottom edge
-                    }
-
-                    if (inside) { r += 255; g += 255; b += 255; }
-
-                    Saturate(ref r, ref g, ref b);
-
-                    if ((r + g + b) == 0 && (v & BresenhamEdgeRasteriser.DROPOUT) > 0) { r += 255; g += 255; b += 255; }
-                    
-                    if (inverted) {
-                        r = 255 - r;
-                        g = 255 - g;
-                        b = 255 - b;
-                    }
-
-                    img.SetPixel((int)dx + x, (int)(dy - y - baseline), r, g, b);
+                    img.SetPixel((int)(dx + x - leftShift), (int)(dy - y - baseline), r, g, b);
                 }
             }
         }
@@ -164,7 +112,7 @@ namespace FontReader.Draw
             const int yos = 3;
 
             // Render over-sized, then average back down
-            var bmp = BresenhamEdgeRasteriser.Render(glyph, scale * xos, scale * yos, out var baseline);
+            var bmp = BresenhamEdgeRasteriser.Render(glyph, scale * xos, scale * yos, out var baseline, out var leftShift);
             var height = bmp.GetLength(0) / yos;
             var width = bmp.GetLength(1) / xos;
             baseline /= 2;
@@ -196,7 +144,7 @@ namespace FontReader.Draw
                         v = 255 - v;
                     }
 
-                    img.SetPixel((int)dx + x, (int)(dy - y - baseline), v, v, v);
+                    img.SetPixel((int)(dx + x - leftShift), (int)(dy - y - baseline), v, v, v);
                 }
             }
         }
@@ -211,15 +159,5 @@ namespace FontReader.Draw
             if (b < 0) b = 0;
         }
         
-        private static void Normalise(ref int r, ref int g, ref int b)
-        {
-            var max = r;
-            if (g > max) max = g;
-            if (b > max) max = b;
-            var fact = 255 / max;
-            r *= fact;
-            g *= fact;
-            b *= fact;
-        } 
     }
 }

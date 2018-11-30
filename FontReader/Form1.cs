@@ -24,10 +24,10 @@ namespace FontReader
                 g.FillRectangle(Brushes.White, 0, 400, 1024, 600);
             }
 
-            var daveFnt = new TrueTypeFont("dave.ttf"); // a font that uses only straight edges (easy to render)
-            //var daveFnt = new TrueTypeFont(@"C:\Temp\what.bin"); // other fonts
-            var bendy = new TrueTypeFont("bendy.ttf"); // a font with extreme curves for testing segmentation
-            var guthenFnt = new TrueTypeFont("guthen_bloots.ttf"); // a curvy font
+            var daveFnt = new TrueTypeFont("dave.ttf");             // a font that uses only straight edges (easy to render)
+            var notoFnt = new TrueTypeFont("NotoSans-Regular.ttf"); // standard professional font
+            var bendyFnt = new TrueTypeFont("bendy.ttf");           // a font with extreme curves for testing segmentation
+            var guthenFnt = new TrueTypeFont("guthen_bloots.ttf");  // a curvy font
 
             var msg_1 = "Hello, world! i0($} ▚ ¾ ∜ -_¬~";
             var msg_2 = "Got to be funky. CQUPOJ8";
@@ -70,7 +70,7 @@ namespace FontReader
             scale = 0.05f;
             for (int i = 0; i < msg_4.Length; i++)
             {
-                var glyph = bendy.ReadGlyph(msg_4[i]);
+                var glyph = bendyFnt.ReadGlyph(msg_4[i]);
 
                 DrawGlyph(img, left, baseline, scale, glyph, false);
                 left += (float)glyph.xMax * scale;
@@ -106,7 +106,6 @@ namespace FontReader
             {
                 var glyph = daveFnt.ReadGlyph((char) ('A'+i));
                 Renderers.RenderSubPixel_RGB_Super3(prox, left, baseline + 20, scale, glyph, false); // this looks reasonable
-                Renderers.RenderSubPixel_RGB_Edge  (prox, left, baseline + 40, scale, glyph, false);
                 left += (float)glyph.xMax * scale;
                 left += letterSpace;
             }
@@ -119,7 +118,6 @@ namespace FontReader
             {
                 var glyph = daveFnt.ReadGlyph((char) ('A'+i));
                 Renderers.RenderSubPixel_RGB_Super3(prox, left, baseline + 30, scale, glyph, false);
-                Renderers.RenderSubPixel_RGB_Edge  (prox, left, baseline + 42, scale, glyph, false); // this shines at tiny sizes
                 left += (float)glyph.xMax * scale;
                 left += letterSpace;
             }
@@ -134,21 +132,33 @@ namespace FontReader
             {
                 var glyph = daveFnt.ReadGlyph((char) ('A'+i));
                 Renderers.RenderSubPixel_RGB_Super3(prox, left, baseline + 20, scale, glyph, true);
-                Renderers.RenderSubPixel_RGB_Edge  (prox, left, baseline + 38, scale, glyph, true);
-                Renderers.RenderSubPixel_RGB_Super3(prox, left, baseline + 50, scale *0.6f, glyph, true);
-                Renderers.RenderSubPixel_RGB_Edge  (prox, left, baseline + 58, scale *0.6f, glyph, true);
+                Renderers.RenderSubPixel_RGB_Super3(prox, left, baseline + 35, scale *0.6f, glyph, true);
                 left += (float)glyph.xMax * scale;
+                left += letterSpace;
+            }
+            
+            // Varying size
+            left = 5;
+            baseline = 480f;
+            scale = 8f / daveFnt.Height();
+            letterSpace = 2.1f;
+            var ampGlyph = daveFnt.ReadGlyph('Η');
+            for (int i = 0; i < 50; i++)
+            {
+                scale += 0.001f;
+                Renderers.RenderSubPixel_RGB_Super3(prox, left, baseline, scale, ampGlyph, true);
+                left += (float)ampGlyph.xMax * scale;
                 left += letterSpace;
             }
             
             // Large black-on-white
             left = 25;
             baseline = 540f;
-            scale = 70f / daveFnt.Height();
+            scale = 70f / notoFnt.Height();
             letterSpace = 5;
             for (int i = 0; i < msg_1.Length; i++)
             {
-                var glyph = daveFnt.ReadGlyph(msg_1[i]);
+                var glyph = notoFnt.ReadGlyph(msg_1[i]);
 
                 DrawGlyph(img, left, baseline, scale, glyph, true);
                 left += (float)glyph.xMax * scale;
