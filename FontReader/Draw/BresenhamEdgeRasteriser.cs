@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using FontReader.Read;
 
 namespace FontReader.Draw
@@ -41,20 +42,51 @@ namespace FontReader.Draw
 
             var width = (int)((xmax - xmin) * xScale) + 8;
             var height = (int)((ymax - ymin) * yScale) + 8;
-            var yAdjust = (baseline < 0) ? 1.5f : 2.0f; // extra headroom for supersampling
 
-            var workspace = new byte[height, width];
+            var workspace = new byte[height, width]; 
 
-            // 1. Walk around all the contours, setting scan-line winding data.
-            WalkContours(glyph, xScale, yScale, yAdjust, workspace);
+            // 1. Grid fit / adjust the contours
+            var contours = GridFitContours(glyph, xScale, yScale, out var yAdjust);
 
-            // 2. Run each scanline, filling where sum of winding is != 0
+            // 2. Walk around all the contours, setting scan-line winding data.
+            WalkContours(contours, workspace); // also adds extra headroom for supersampling
+
+            // 3. Run each scanline, filling where sum of winding is != 0
             FillScans(workspace);
             //DiagnosticFillScans(workspace);
 
-            baseline += 1; // compensate for the headspace we added.
+            // adjust the baseline here, to control 'jitter' caused by pixel-fitting
+            if (baseline < 0) yAdjust -= 0.5f;
+            baseline += yAdjust;
 
             return workspace;
+        }
+
+        private static List<GlyphPoint[]> GridFitContours(Glyph glyph, float xScale, float yScale, out float yAdj)
+        {
+            yAdj = 0;
+            if (glyph == null) return new List<GlyphPoint[]>();
+            if (glyph.Points == null || glyph.Points.Length < 1) return new List<GlyphPoint[]>();
+            if (glyph.ContourEnds == null || glyph.ContourEnds.Length < 1) return new List<GlyphPoint[]>();
+
+            var contours = glyph.NormalisedContours(xScale, yScale, 0, 0);
+
+            var adjY = double.MaxValue;
+            
+            foreach (var contour in contours)
+            {
+                foreach (var point in contour)
+                {
+                    adjY = Math.Min(adjY, Math.Round(point.Y - 0.5)); // calculate how 'wrong' the pixel fit will be
+
+                    // pixel-fit the contour points
+                    point.X = Math.Round(point.X);
+                    point.Y = Math.Round(point.Y);
+                }
+            }
+
+            yAdj = (float)adjY;
+            return contours;
         }
 
         // ReSharper disable once UnusedMember.Local
@@ -110,13 +142,8 @@ namespace FontReader.Draw
             }
         }
 
-        private static void WalkContours(Glyph glyph, float xScale, float yScale, float yAdjust, byte[,] workspace)
+        private static void WalkContours(List<GlyphPoint[]> contours, byte[,] workspace)
         {
-            if (glyph == null) return;
-            if (glyph.Points == null || glyph.Points.Length < 1) return;
-            if (glyph.ContourEnds == null || glyph.ContourEnds.Length < 1) return;
-
-            var contours = glyph.NormalisedContours(xScale, yScale, 0, yAdjust);
             if (contours == null) return;
             foreach (var contour in contours)
             {
@@ -148,10 +175,10 @@ namespace FontReader.Draw
             var fdx = end.X - start.X;
             var fdy = end.Y - start.Y;
 
-            int x0 = (int)Math.Round(start.X);
-            int y0 = (int)Math.Round(start.Y);
-            int x1 = (int)Math.Round(end.X);
-            int y1 = (int)Math.Round(end.Y);
+            var x0 = (int)start.X;
+            var x1 = (int)end.X;
+            var y0 = (int)start.Y + 1;
+            var y1 = (int)end.Y + 1;
 
             int dx = x1-x0, sx = x0<x1 ? 1 : -1;
             int dy = y1-y0, sy = y0<y1 ? 1 : -1;

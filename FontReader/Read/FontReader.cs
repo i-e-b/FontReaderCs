@@ -64,7 +64,9 @@ namespace FontReader.Read
                 _unicodeIndexes.Add(wantedChar,  GlyphIndexForChar(wantedChar));
             }
 
-            return ReadGlyphByIndex(_unicodeIndexes[wantedChar], char.IsWhiteSpace(wantedChar));
+            var g = ReadGlyphByIndex(_unicodeIndexes[wantedChar], char.IsWhiteSpace(wantedChar));
+            g.SourceCharacter = wantedChar;
+            return g;
         }
 
         private int GlyphIndexForChar(char wantedChar)
@@ -315,8 +317,8 @@ namespace FontReader.Read
             }
 
             // Fill out point data
-            ElaborateCoords(flags, points, (i, v) => points[i].X = v, SimpleGlyphFlags.X_IS_BYTE, SimpleGlyphFlags.X_DELTA, g.xMin, g.xMax);
-            ElaborateCoords(flags, points, (i, v) => points[i].Y = v, SimpleGlyphFlags.Y_IS_BYTE, SimpleGlyphFlags.Y_DELTA, g.yMin, g.yMax);
+            ElaborateCoords(flags, points, (i, v) => points[i].X = v, SimpleGlyphFlags.X_IS_BYTE, SimpleGlyphFlags.X_DELTA);
+            ElaborateCoords(flags, points, (i, v) => points[i].Y = v, SimpleGlyphFlags.Y_IS_BYTE, SimpleGlyphFlags.Y_DELTA);
 
             g.Points = points.ToArray();
             g.ContourEnds = ends.ToArray();
@@ -324,7 +326,7 @@ namespace FontReader.Read
             return g;
         }
 
-        private void ElaborateCoords(List<SimpleGlyphFlags> flags, List<GlyphPoint> points, Action<int, double> map, SimpleGlyphFlags byteFlag, SimpleGlyphFlags deltaFlag, double min, double max)
+        private void ElaborateCoords(List<SimpleGlyphFlags> flags, List<GlyphPoint> points, Action<int, double> map, SimpleGlyphFlags byteFlag, SimpleGlyphFlags deltaFlag)
         {
             var value = 0.0d;
 

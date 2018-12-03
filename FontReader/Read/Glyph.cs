@@ -23,6 +23,7 @@ namespace FontReader.Read
         /// </summary>
         public CompoundComponent[] Components;
 
+        public char SourceCharacter;
         public GlyphPoint[] Points;
         public int[] ContourEnds;
 

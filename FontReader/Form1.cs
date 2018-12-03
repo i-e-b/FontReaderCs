@@ -46,7 +46,7 @@ namespace FontReader
             float baseline = 140f;
             float scale = 48f / daveFnt.Height();
             float letterSpace = 5;
-
+            
             // Draw first message with angular font
             for (int i = 0; i < msg_1.Length; i++)
             {
@@ -198,7 +198,7 @@ namespace FontReader
                 var glyph = notoFnt.ReadGlyph('O'); // Show quality of curve-to-line interpolation
                 DrawGlyph(img, 600, 350, scale, glyph, false);
             }
-
+            
 
             sw.Stop();
             Text = "Glyph find & render took:" + sw.Elapsed;
