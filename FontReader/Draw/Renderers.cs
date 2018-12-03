@@ -1,4 +1,6 @@
-﻿using FontReader.Read;
+﻿using System;
+using System.Collections.Generic;
+using FontReader.Read;
 
 namespace FontReader.Draw
 {
@@ -8,98 +10,182 @@ namespace FontReader.Draw
     /// </summary>
     public class Renderers
     {
+
         /// <summary>
-        /// Render small font sizes with a super-sampling sub-pixel algorithm. Super-samples only in the x direction
+        /// Draw a single glyph, picking a renderer based on size
+        /// </summary>
+        public static void DrawGlyph(BitmapProxy img, float dx, float dy, float scale, Glyph glyph, bool inverted)
+        {
+            try
+            {
+                if (scale <= 0.03f) // Optimised for smaller sizes
+                {
+                    RenderSubPixel_RGB_Super3(img, dx, dy, scale, glyph, inverted);
+                }
+                else // Optimised for larger sizes
+                {
+                    RenderSuperSampled(img, dx, dy, scale, glyph, inverted);
+                }
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                // tried to write off the end of the img
+            }
+        }
+
+
+        private static readonly Dictionary<string, RenderCacheEntry> _renderCache = new Dictionary<string, RenderCacheEntry>();
+
+        /// <summary>
+        /// Render small font sizes with a super-sampling sub-pixel algorithm. Super-samples only in the x direction.
+        /// This renderer may cache its output
         /// </summary>
         public static void RenderSubPixel_RGB_Super3(BitmapProxy img, float dx, float dy, float scale, Glyph glyph, bool inverted)
         {
             const int bright = 17;
-            var workspace = BresenhamEdgeRasteriser.Render(glyph, scale * 3, scale, out var baseline, out var leftShift);
-            var height = workspace.Height;
-            var width = workspace.Width / 3;
-            if (baseline*baseline < 1) baseline = 0;
 
-            var topsFlag = BresenhamEdgeRasteriser.DIR_RIGHT | BresenhamEdgeRasteriser.DIR_LEFT | BresenhamEdgeRasteriser.DROPOUT;
+            float leftShift;
+            float baseline;
+            int[] table;
+            int height;
+            int width;
 
-            var data = workspace.Data;
-            var w = workspace.Width;
+            var cacheKey = glyph.SourceCharacter + scale + glyph.SourceFont;
+            if (_renderCache.ContainsKey(cacheKey)) {
+                var ce = _renderCache[cacheKey];
+                table = ce.Table;
+                width = ce.Width;
+                height = ce.Height;
+                leftShift = ce.LeftShift;
+                baseline = ce.Baseline;
+            }
+            else
+            {
+                var workspace = BresenhamEdgeRasteriser.Rasterise(glyph, scale * 3, scale);
+                height = workspace.Height;
+                width = workspace.Width / 3;
+                baseline = workspace.Baseline;
+                leftShift = workspace.Shift;
 
+                if (baseline*baseline < 1) baseline = 0;
+
+                var topsFlag = BresenhamEdgeRasteriser.DIR_RIGHT | BresenhamEdgeRasteriser.DIR_LEFT | BresenhamEdgeRasteriser.DROPOUT;
+
+                var data = workspace.Data;
+                var w = workspace.Width;
+                var tableSize = width * height;
+
+                // Not cached: Build the RGB table for the char
+                table = new int[tableSize];
+                for (int y = 0; y < height; y++)
+                {
+                    var yBase = y * w;
+                    var yout = y * width;
+                    for (int x = 0; x < width; x++)
+                    {
+                        var r = 0;
+                        var g = 0;
+                        var b = 0;
+                        // ReSharper disable JoinDeclarationAndInitializer
+                        int tops, ins, left, right;
+                        // ReSharper restore JoinDeclarationAndInitializer
+
+                        var _1 = data[yBase + x * 3];
+                        var _2 = data[yBase + x * 3 + 1];
+                        var _3 = data[yBase + x * 3 + 2];
+
+                        // first try the simple case of all pixels in:
+                        if (
+                               (_1 & BresenhamEdgeRasteriser.INSIDE) > 0
+                            && (_2 & BresenhamEdgeRasteriser.INSIDE) > 0
+                            && (_3 & BresenhamEdgeRasteriser.INSIDE) > 0
+                            )
+                        {
+                            table[yout + x] = 0xffffff;
+                            continue;
+                        }
+                        var topS = 3;
+                        var insS = 5;
+                        var sideS = 3;
+
+                        var flag = _1;
+                        tops = (flag & topsFlag) > 0 ? topS : 0;
+                        ins = (flag & BresenhamEdgeRasteriser.INSIDE) > 0 ? insS : 0;
+                        left = (flag & BresenhamEdgeRasteriser.DIR_UP) > 0 ? sideS : 0;
+                        right = (flag & BresenhamEdgeRasteriser.DIR_DOWN) > 0 ? sideS : 0;
+                        if (ins > 0 || left > 0 || right > 0) tops = 0;
+
+                        b += tops + ins + (left * 2);
+                        g += tops + ins + (left) + (right);
+                        r += tops + ins + (right * 2);
+
+                        flag = _2;
+                        tops = (flag & topsFlag) > 0 ? topS : 0;
+                        ins = (flag & BresenhamEdgeRasteriser.INSIDE) > 0 ? insS : 0;
+                        left = (flag & BresenhamEdgeRasteriser.DIR_UP) > 0 ? sideS : 0;
+                        right = (flag & BresenhamEdgeRasteriser.DIR_DOWN) > 0 ? sideS : 0;
+                        if (ins > 0 || left > 0 || right > 0) tops = 0;
+
+                        b += tops + ins + (left * 2);
+                        g += tops + ins + (left) + (right);
+                        r += tops + ins + (right * 2);
+
+                        flag = _3;
+                        tops = (flag & topsFlag) > 0 ? topS : 0;
+                        ins = (flag & BresenhamEdgeRasteriser.INSIDE) > 0 ? insS : 0;
+                        left = (flag & BresenhamEdgeRasteriser.DIR_UP) > 0 ? sideS : 0;
+                        right = (flag & BresenhamEdgeRasteriser.DIR_DOWN) > 0 ? sideS : 0;
+                        if (ins > 0 || left > 0 || right > 0) tops = 0;
+
+                        b += tops + ins + (left * 2);
+                        g += tops + ins + left + right;
+                        r += tops + ins + (right * 2);
+
+                        r *= bright;
+                        g *= bright;
+                        b *= bright;
+
+                        Saturate(ref r, ref g, ref b);
+
+                        table[yout + x] = (r << 16) + (g << 8) + b;
+                    }
+                }
+
+                // add to cache
+                var entry = new RenderCacheEntry{
+                    Width = width,
+                    Height = height,
+                    Baseline = baseline,
+                    LeftShift = leftShift,
+                    Table = table
+                };
+                if (_renderCache.ContainsKey(cacheKey)) _renderCache[cacheKey] = entry;
+                else _renderCache.Add(cacheKey, entry);
+            }
+
+            // Stupid way to keep the cache smallish:
+            if (_renderCache.Count > 100)
+                _renderCache.Clear();
+
+            // now render the table to an image
             for (int y = 0; y < height; y++)
             {
-                var yBase = y * w;
-                for (int x = 0; x < width; x++)
-                {
-                    var r = 0;
-                    var g = 0;
-                    var b = 0;
-                    // ReSharper disable JoinDeclarationAndInitializer
-                    int tops,ins,left,right;
-                    // ReSharper restore JoinDeclarationAndInitializer
+                var yBase = y * width;
+                for (int x = 0; x < width; x++) {
+                    int c = table[yBase + x];
 
-                    var _1 = data[yBase + x*3];
-                    var _2 = data[yBase + x*3 + 1];
-                    var _3 = data[yBase + x*3 + 2];
+                    if (c == 0) continue;
 
-                    // first try the simple case of all pixels in:
-                    if (
-                           (_1 & BresenhamEdgeRasteriser.INSIDE) > 0
-                        && (_2 & BresenhamEdgeRasteriser.INSIDE) > 0
-                        && (_3 & BresenhamEdgeRasteriser.INSIDE) > 0
-                        ) {
-                        var v = inverted ? 0 : 255;
-                        img.SetPixel((int)(dx + x - leftShift), (int)(dy - y - baseline), v, v, v);
-                        continue;
-                    }
-                    var topS = 3;
-                    var insS = 5;
-                    var sideS = 3;
-
-                    var flag = _1;
-                    tops = (flag & topsFlag) > 0 ? topS : 0;
-                    ins = (flag & BresenhamEdgeRasteriser.INSIDE) > 0 ? insS : 0;
-                    left = (flag & BresenhamEdgeRasteriser.DIR_UP) > 0 ? sideS : 0;
-                    right = (flag & BresenhamEdgeRasteriser.DIR_DOWN) > 0 ? sideS : 0;
-                    if (ins > 0 || left > 0 || right > 0) tops = 0;
-
-                    b += tops + ins + (left * 2);
-                    g += tops + ins + (left) + (right);
-                    r += tops + ins  + (right * 2);
+                    int r = (c & 0xff0000) >> 16;
+                    int g = (c & 0x00ff00) >> 8;
+                    int b = (c & 0x0000ff);
                     
-                    flag = _2;
-                    tops = (flag & topsFlag) > 0 ? topS : 0;
-                    ins = (flag & BresenhamEdgeRasteriser.INSIDE) > 0 ? insS : 0;
-                    left = (flag & BresenhamEdgeRasteriser.DIR_UP) > 0 ? sideS : 0;
-                    right = (flag & BresenhamEdgeRasteriser.DIR_DOWN) > 0 ? sideS : 0;
-                    if (ins > 0 || left > 0 || right > 0) tops = 0;
-
-                    b += tops + ins + (left * 2);
-                    g += tops + ins + (left) + (right);
-                    r += tops + ins + (right * 2);
-                    
-                    flag = _3;
-                    tops = (flag & topsFlag) > 0 ? topS : 0;
-                    ins = (flag & BresenhamEdgeRasteriser.INSIDE) > 0 ? insS : 0;
-                    left = (flag & BresenhamEdgeRasteriser.DIR_UP) > 0 ? sideS : 0;
-                    right = (flag & BresenhamEdgeRasteriser.DIR_DOWN) > 0 ? sideS : 0;
-                    if (ins > 0 || left > 0 || right > 0) tops = 0;
-
-                    b += tops + ins  + (left * 2);
-                    g += tops + ins + left + right;
-                    r += tops + ins + (right * 2);
-                    
-                    if (r == 0 && g == 0 && b == 0) continue;
-
-                    r *= bright;
-                    g *= bright;
-                    b *= bright;
-                    
-                    if (inverted) {
-                        b = 255 - b;
+                    if (inverted)
+                    {
                         r = 255 - r;
                         g = 255 - g;
+                        b = 255 - b;
                     }
-
-                    Saturate(ref r, ref g, ref b);
 
                     img.SetPixel((int)(dx + x - leftShift), (int)(dy - y - baseline), r, g, b);
                 }
@@ -108,6 +194,7 @@ namespace FontReader.Draw
 
         /// <summary>
         /// Smoothing renderer for larger sizes. Does not gurantee sharp pixel edges, loses edges on small sizes
+        /// This renderer will not cache its output
         /// </summary>
         public static void RenderSuperSampled(BitmapProxy img, float dx, float dy, float scale, Glyph glyph, bool inverted)
         {
@@ -116,10 +203,13 @@ namespace FontReader.Draw
             const int yos = 3;
 
             // Render over-sized, then average back down
-            var workspace = BresenhamEdgeRasteriser.Render(glyph, scale * xos, scale * yos, out var baseline, out var leftShift);
+            var workspace = BresenhamEdgeRasteriser.Rasterise(glyph, scale * xos, scale * yos);
             var height = workspace.Height / yos;
             var width = workspace.Width / xos;
+            var baseline = workspace.Baseline;
+            var leftShift = workspace.Shift;
             baseline /= yos;
+            baseline += 1; // account for Y overrun in our sampling
 
             var data = workspace.Data;
             var w = workspace.Width;
@@ -170,5 +260,14 @@ namespace FontReader.Draw
             if (b < 0) b = 0;
         }
         
+    }
+    
+    internal class RenderCacheEntry
+    {
+        public int[] Table;
+        public float LeftShift;
+        public float Baseline;
+        public int Width;
+        public int Height;
     }
 }

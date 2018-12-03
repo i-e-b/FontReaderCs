@@ -9,6 +9,8 @@
         public byte[] Data;
         public int Width;
         public int Height;
+        public float Baseline;
+        public float Shift;
 
         public static EdgeWorkspace Empty()
         {

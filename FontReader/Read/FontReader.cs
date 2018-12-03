@@ -6,11 +6,13 @@ namespace FontReader.Read
 {
     public class TrueTypeFont : IFontReader
     {
+        private readonly string _filename;
         public const uint HEADER_MAGIC = 0x5f0f3cf5;
 
         private readonly BinaryReader file;
         private readonly Dictionary<string, OffsetEntry> _tables;
         private readonly Dictionary<char, int> _unicodeIndexes;
+        private readonly Dictionary<int, Glyph> _glyphCache;
 
         private readonly FontHeader _header;
 
@@ -20,6 +22,43 @@ namespace FontReader.Read
         private ushort _rangeShift;
         private int _length;
 
+        public TrueTypeFont(string filename)
+        {
+            _filename = filename;
+            file = new BinaryReader(filename);
+            _unicodeIndexes = new Dictionary<char, int>();
+            _glyphCache = new Dictionary<int, Glyph>();
+
+            // The order that things are read below is important
+            // DO NOT REARRANGE CALLS!
+            _tables = ReadOffsetTables();
+            _header = ReadHeadTable();
+            _length = GlyphCount();
+
+            if ( ! _tables.ContainsKey("glyf")) throw new Exception("Bad font: glyf table missing");
+            if ( ! _tables.ContainsKey("loca")) throw new Exception("Bad font: loca table missing");
+        }
+
+        /// <summary>
+        /// Read a glyph based on a Unicode character. This will be cached.
+        /// </summary>
+        public Glyph ReadGlyph(char wantedChar)
+        {
+            if ( ! _unicodeIndexes.ContainsKey(wantedChar)) {
+                _unicodeIndexes.Add(wantedChar,  GlyphIndexForChar(wantedChar));
+            }
+
+            var offset = _unicodeIndexes[wantedChar]; // we do it this way, because multiple characters could map to the same glyph
+
+            if ( ! _glyphCache.ContainsKey(offset) ) {
+                var g = ReadGlyphByIndex(_unicodeIndexes[wantedChar], char.IsWhiteSpace(wantedChar));
+                g.SourceCharacter = wantedChar;
+                g.SourceFont = _filename;
+                _glyphCache.Add(offset, g);
+            }
+
+            return _glyphCache[offset];
+        }
         
         /// <summary>
         /// Get the reported overall height of the font
@@ -34,7 +73,7 @@ namespace FontReader.Read
             return (float)yMax * 2.0f;
         }
         
-        public Glyph ReadGlyphByIndex(int index, bool forceEmpty)
+        private Glyph ReadGlyphByIndex(int index, bool forceEmpty)
         {
             var offset = GetGlyphOffset(index);
 
@@ -58,16 +97,6 @@ namespace FontReader.Read
             return ReadSimpleGlyph(glyph);
         }
         
-        public Glyph ReadGlyph(char wantedChar)
-        {
-            if ( ! _unicodeIndexes.ContainsKey(wantedChar)) {
-                _unicodeIndexes.Add(wantedChar,  GlyphIndexForChar(wantedChar));
-            }
-
-            var g = ReadGlyphByIndex(_unicodeIndexes[wantedChar], char.IsWhiteSpace(wantedChar));
-            g.SourceCharacter = wantedChar;
-            return g;
-        }
 
         private int GlyphIndexForChar(char wantedChar)
         {
@@ -161,21 +190,6 @@ namespace FontReader.Read
             return res;
         }
 
-
-        public TrueTypeFont(string filename)
-        {
-            file = new BinaryReader(filename);
-            _unicodeIndexes = new Dictionary<char, int>();
-
-            // The order that things are read below is important
-            // DO NOT REARRANGE CALLS!
-            _tables = ReadOffsetTables();
-            _header = ReadHeadTable();
-            _length = GlyphCount();
-
-            if ( ! _tables.ContainsKey("glyf")) throw new Exception("Bad font: glyf table missing");
-            if ( ! _tables.ContainsKey("loca")) throw new Exception("Bad font: loca table missing");
-        }
 
         private int GlyphCount()
         {

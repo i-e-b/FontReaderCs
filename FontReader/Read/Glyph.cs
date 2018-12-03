@@ -23,16 +23,39 @@ namespace FontReader.Read
         /// </summary>
         public CompoundComponent[] Components;
 
+        /// <summary>
+        /// character that was used to find this glyph
+        /// </summary>
         public char SourceCharacter;
+
+        /// <summary>
+        /// The font from which this glyph was loaded
+        /// </summary>
+        public string SourceFont;
+
+        /// <summary>
+        /// All glyph points (as loaded from font file)
+        /// </summary>
         public GlyphPoint[] Points;
+
+        /// <summary>
+        /// Indexes of points where contours end
+        /// </summary>
         public int[] ContourEnds;
 
+        /// <summary>
+        /// Cache of normalised contour poinst
+        /// </summary>
+        public List<GlyphPoint[]> ContourCache;
 
         /// <summary>
         /// Reduce the glyph to a set of simple point contours.
-        /// Curves will be re-drawn as segments
+        /// Curves will be re-drawn as segments.
+        /// This list will be cached, so do NOT directly edit the output
         /// </summary>
-        public List<GlyphPoint[]> NormalisedContours(double xScale, double yScale, double xOffset, double yOffset) {
+        public List<GlyphPoint[]> NormalisedContours() {
+            if (ContourCache != null) return ContourCache;
+
             if (Points == null || Points.Length < 1) return null;
             if (ContourEnds == null || ContourEnds.Length < 1) return null;
 
@@ -46,17 +69,16 @@ namespace FontReader.Read
             {
                 var point = Points[p];
 
-                var xpos = (point.X - xMin) * xScale;
-                var ypos = (point.Y - yMin) * yScale;
+                var xpos = point.X - xMin;
+                var ypos = point.Y - yMin;
 
                 if (xpos < 0) xpos = 0;
                 if (ypos < 0) ypos = 0;
 
-                contour.Add(new GlyphPoint { X = xpos + xOffset, Y = ypos + yOffset, OnCurve = point.OnCurve });
+                contour.Add(new GlyphPoint { X = xpos, Y = ypos, OnCurve = point.OnCurve });
 
                 if (p == ContourEnds[c])
                 {
-                    // TODO: merge this up to avoid a double-copy
                     outp.Add(NormaliseContour(contour));
                     contour.Clear();
                     c++;
@@ -64,6 +86,7 @@ namespace FontReader.Read
 
                 p++;
             }
+            ContourCache = outp;
             return outp;
         }
 
@@ -171,18 +194,12 @@ namespace FontReader.Read
                 yield break;
             }
 
-            var minStep = 1.0d;   // larger = less refined curve, but faster
+            var minStep = 20.0d;   // larger = less refined curve, but faster
             var inv = minStep / dist; // estimated step size. Refined by 'minStep' checks in the main loop
-            var pp = start;
 
             for (double t = 0; t < 1; t+= inv)
             {
-                var pt = InterpolatePoints(start, ctrl, end, t, 1.0 - t);
-
-                if (Math.Abs(pp.X - pt.X) > minStep || Math.Abs(pp.Y - pt.Y) > minStep) {
-                    pp = pt;
-                    yield return pt;
-                }
+                yield return InterpolatePoints(start, ctrl, end, t, 1.0 - t);
             }
         }
 

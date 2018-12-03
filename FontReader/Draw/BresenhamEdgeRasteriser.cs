@@ -20,9 +20,6 @@ namespace FontReader.Draw
         public const byte TOUCHED   = 0x20; // pixel has been processed
         public const byte DROPOUT   = 0x40; // pixel *might* be a small feature drop-out
 
-        [ThreadStatic]
-        private static byte[] sharedBuffer; // makes this non-reentrant
-
         /// <summary>
         /// Render a glyph at the given scale. Result is a grid of flag values.
         /// </summary>
@@ -31,17 +28,16 @@ namespace FontReader.Draw
         /// <param name="yScale">Scale factor</param>
         /// <param name="baseline">Offset from grid bottom to baseline</param>
         /// <param name="leftShift">Offset from grid left to character left</param>
-        public static EdgeWorkspace Render(Glyph glyph, float xScale, float yScale, out float baseline, out float leftShift){
-            baseline = 0;
-            leftShift = 0;
+        public static EdgeWorkspace Rasterise(Glyph glyph, float xScale, float yScale)
+        {
             if (glyph == null) return null;
             if (glyph.GlyphType != GlyphTypes.Simple) return EdgeWorkspace.Empty();
 
             // glyph sizes are not reliable for this.
             glyph.GetPointBounds(out var xmin, out var xmax, out var ymin, out var ymax);
 
-            baseline = (float) (glyph.yMin * yScale);
-            leftShift = (float)(-glyph.xMin * xScale * 0.5); // I guess the 0.5 fudge-factor is due to lack of kerning support
+            var baseline = (float) (glyph.yMin * yScale);
+            var leftShift = (float)(-glyph.xMin * xScale * 0.5); // I guess the 0.5 fudge-factor is due to lack of kerning support
 
             var width = (int)((xmax - xmin) * xScale) + 8;
             var height = (int)((ymax - ymin) * yScale) + 8;
@@ -62,6 +58,9 @@ namespace FontReader.Draw
             if (baseline < 0) yAdjust -= 0.5f;
             baseline += yAdjust;
 
+            workspace.Baseline = baseline;
+            workspace.Shift = leftShift;
+
             return workspace;
         }
 
@@ -69,21 +68,11 @@ namespace FontReader.Draw
         {
             var requiredBufferSize = width * height;
 
-            if (sharedBuffer == null || sharedBuffer.Length < requiredBufferSize)
-            {
-                sharedBuffer = new byte[requiredBufferSize * 2];
-            }
-
-            for (int i = 0; i < requiredBufferSize; i++)
-            {
-                sharedBuffer[i] = 0;
-            }
-
             var workspace = new EdgeWorkspace
             {
                 Height = height,
                 Width = width,
-                Data = sharedBuffer
+                Data = new byte[requiredBufferSize]
             };
             return workspace;
         }
@@ -95,24 +84,41 @@ namespace FontReader.Draw
             if (glyph.Points == null || glyph.Points.Length < 1) return new List<GlyphPoint[]>();
             if (glyph.ContourEnds == null || glyph.ContourEnds.Length < 1) return new List<GlyphPoint[]>();
 
-            var contours = glyph.NormalisedContours(xScale, yScale, 0, 0);
+            var input = glyph.NormalisedContours();
 
             var adjY = double.MaxValue;
             
-            foreach (var contour in contours)
+            var output = new List<GlyphPoint[]>();
+            foreach (var contour in input)
             {
-                foreach (var point in contour)
+                var outContour = new List<GlyphPoint>(contour.Length);
+                var prevX = int.MaxValue;
+                var prevY = int.MaxValue;
+                for (int i = 0; i < contour.Length; i++)
                 {
+                    var point = new GlyphPoint{
+                        X = contour[i].X * xScale,
+                        Y = contour[i].Y * yScale
+                    };
+
                     adjY = Math.Min(adjY, Math.Round(point.Y - 0.5)); // calculate how 'wrong' the pixel fit will be
 
                     // pixel-fit the contour points
                     point.X = Math.Round(point.X);
                     point.Y = Math.Round(point.Y);
+
+                    if ((int)point.X != prevX || (int)point.Y != prevY) { // ignore segments less than a pixel long
+                        outContour.Add(point);
+
+                        prevX = (int)point.X;
+                        prevY = (int)point.Y;
+                    }
                 }
+                output.Add(outContour.ToArray());
             }
 
             yAdj = (float)adjY;
-            return contours;
+            return output;
         }
 
         // ReSharper disable once UnusedMember.Local
@@ -126,8 +132,6 @@ namespace FontReader.Draw
 
             for (int y = 0; y < ymax; y++)
             {
-                int w = 0;
-                bool prevUp = false;
                 var ypos = y * workspace.Width;
                 for (int x = 0; x < xmax; x++)
                 {

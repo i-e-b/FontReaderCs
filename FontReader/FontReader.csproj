@@ -48,7 +48,6 @@
   <ItemGroup>
     <Compile Include="Draw\BitmapProxy.cs" />
     <Compile Include="Draw\EdgeWorkspace.cs" />
-    <Compile Include="Draw\OrthagonalDistanceRasteriser.cs" />
     <Compile Include="Draw\Renderers.cs" />
     <Compile Include="Draw\BresenhamEdgeRasteriser.cs" />
     <Compile Include="Read\BinaryReader.cs" />

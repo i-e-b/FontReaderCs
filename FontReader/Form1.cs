@@ -52,7 +52,7 @@ namespace FontReader
             {
                 var glyph = daveFnt.ReadGlyph(msg_1[i]);
 
-                DrawGlyph(img, left, baseline, scale, glyph, false);
+                Renderers.DrawGlyph(prox, left, baseline, scale, glyph, false);
                 left += (float)glyph.xMax * scale;
                 left += letterSpace;
             }
@@ -65,7 +65,7 @@ namespace FontReader
             {
                 var glyph = guthenFnt.ReadGlyph(msg_2[i]);
 
-                DrawGlyph(img, left, baseline, scale, glyph, false);
+                Renderers.DrawGlyph(prox, left, baseline, scale, glyph, false);
                 left += (float)glyph.xMax * scale;
                 left += letterSpace;
             }
@@ -78,7 +78,7 @@ namespace FontReader
             {
                 var glyph = bendyFnt.ReadGlyph(msg_4[i]);
 
-                DrawGlyph(img, left, baseline, scale, glyph, false);
+                Renderers.DrawGlyph(prox, left, baseline, scale, glyph, false);
                 left += (float)glyph.xMax * scale;
                 left += letterSpace;
             }
@@ -96,7 +96,7 @@ namespace FontReader
                 }
                 var glyph = daveFnt.ReadGlyph(msg_3[i]);
 
-                DrawGlyph(img, left, baseline, scale, glyph, false);
+                Renderers.DrawGlyph(prox, left, baseline, scale, glyph, false);
                 left += (float)glyph.xMax * scale;
                 left += letterSpace;
             }
@@ -172,7 +172,7 @@ namespace FontReader
             for (int i = 0; i < 50; i++)
             {
                 scale += 0.001f;
-                DrawGlyph(img, left, baseline, scale, ampGlyph, true);
+                Renderers.DrawGlyph(prox, left, baseline, scale, ampGlyph, true);
                 left += (float)ampGlyph.xMax * scale;
                 left += letterSpace;
             }
@@ -186,7 +186,7 @@ namespace FontReader
             {
                 var glyph = notoFnt.ReadGlyph(msg_1[i]);
 
-                DrawGlyph(img, left, baseline, scale, glyph, true);
+                Renderers.DrawGlyph(prox, left, baseline, scale, glyph, true);
                 left += (float)glyph.xMax * scale;
                 left += letterSpace;
             }
@@ -196,19 +196,20 @@ namespace FontReader
             for (int i = 0; i < 1; i++)
             {
                 var glyph = notoFnt.ReadGlyph('&'); // Show quality of curve-to-line interpolation
-                DrawGlyph(img, 600, 350, scale, glyph, false);
+                Renderers.DrawGlyph(prox, 600, 350, scale, glyph, false);
             }
             
 
             sw.Stop();
             Text = "Glyph find & render took: " + sw.Elapsed;
 
+            // Prove that the render cache works:
             var repeatglyph = notoFnt.ReadGlyph('&');
-            scale = 12f / notoFnt.Height();
+            scale = 10f / notoFnt.Height();
             var nullProx = new NullProxy();
             sw.Reset();
             sw.Start();
-            for (int i = 0; i < 20_000; i++)
+            for (int i = 0; i < 200_000; i++)
             {
                 Renderers.RenderSubPixel_RGB_Super3(nullProx, 0, 0, scale, repeatglyph, false);
             }
@@ -219,29 +220,6 @@ namespace FontReader
             Width = img.Width + 18;
             Height = img.Height + 41;
         }
-
-        private void DrawGlyph(Bitmap img, float dx, float dy, float scale, Glyph glyph, bool inverted)
-        {
-            try
-            {
-                var prox = new FormsBitmap(img);
-                if (scale <= 0.03f) // Optimised for smaller sizes
-                {
-                    Renderers.RenderSubPixel_RGB_Super3(prox, dx, dy, scale, glyph, inverted);
-                }
-                else // Optimised for larger sizes
-                {
-                    Renderers.RenderSuperSampled(prox, dx, dy, scale, glyph, inverted);
-                }
-            }
-            catch (ArgumentOutOfRangeException)
-            {
-                // tried to write off the end of the img
-            }
-        }
-
-
-
     }
 
     /// <summary>
