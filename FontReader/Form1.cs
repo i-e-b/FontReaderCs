@@ -195,13 +195,25 @@ namespace FontReader
             scale = 370f / notoFnt.Height();
             for (int i = 0; i < 1; i++)
             {
-                var glyph = notoFnt.ReadGlyph('O'); // Show quality of curve-to-line interpolation
+                var glyph = notoFnt.ReadGlyph('&'); // Show quality of curve-to-line interpolation
                 DrawGlyph(img, 600, 350, scale, glyph, false);
             }
             
 
             sw.Stop();
-            Text = "Glyph find & render took:" + sw.Elapsed;
+            Text = "Glyph find & render took: " + sw.Elapsed;
+
+            var repeatglyph = notoFnt.ReadGlyph('&');
+            scale = 12f / notoFnt.Height();
+            var nullProx = new NullProxy();
+            sw.Reset();
+            sw.Start();
+            for (int i = 0; i < 20_000; i++)
+            {
+                Renderers.RenderSubPixel_RGB_Super3(nullProx, 0, 0, scale, repeatglyph, false);
+            }
+            sw.Stop();
+            Text += "; Render stress test: " + sw.Elapsed;
 
             outputPictureBox.Image = img;
             Width = img.Width + 18;
@@ -213,7 +225,7 @@ namespace FontReader
             try
             {
                 var prox = new FormsBitmap(img);
-                if (scale <= 0.04f) // Optimised for smaller sizes
+                if (scale <= 0.03f) // Optimised for smaller sizes
                 {
                     Renderers.RenderSubPixel_RGB_Super3(prox, dx, dy, scale, glyph, inverted);
                 }
@@ -230,6 +242,17 @@ namespace FontReader
 
 
 
+    }
+
+    /// <summary>
+    /// An image proxy that does nothing (for testing)
+    /// </summary>
+    internal class NullProxy : BitmapProxy
+    {
+        /// <inheritdoc />
+        public override void SetPixel(int x, int y, int r, int g, int b)
+        {
+        }
     }
 
     internal class FormsBitmap : BitmapProxy

@@ -28,11 +28,11 @@ namespace FontReader.Draw
         /// <param name="yScale">Scale factor</param>
         /// <param name="baseline">Offset from grid bottom to baseline</param>
         /// <param name="leftShift">Offset from grid left to character left</param>
-        public static byte[,] Render(Glyph glyph, float xScale, float yScale, out float baseline, out float leftShift){
+        public static EdgeWorkspace Render(Glyph glyph, float xScale, float yScale, out float baseline, out float leftShift){
             baseline = 0;
             leftShift = 0;
             if (glyph == null) return null;
-            if (glyph.GlyphType != GlyphTypes.Simple) return new byte[0, 0];
+            if (glyph.GlyphType != GlyphTypes.Simple) return EdgeWorkspace.Empty();
 
             // glyph sizes are not reliable for this.
             glyph.GetPointBounds(out var xmin, out var xmax, out var ymin, out var ymax);
@@ -43,7 +43,12 @@ namespace FontReader.Draw
             var width = (int)((xmax - xmin) * xScale) + 8;
             var height = (int)((ymax - ymin) * yScale) + 8;
 
-            var workspace = new byte[height, width]; 
+            var workspace = new EdgeWorkspace{
+                Height = height,
+                Width = width,
+                Data = new byte[width*height*2]
+            }; 
+            //var workspace = new byte[height, width]; // todo: cache this, grow as needed? ... also, make 1D?
 
             // 1. Grid fit / adjust the contours
             var contours = GridFitContours(glyph, xScale, yScale, out var yAdjust);
@@ -52,7 +57,7 @@ namespace FontReader.Draw
             WalkContours(contours, workspace); // also adds extra headroom for supersampling
 
             // 3. Run each scanline, filling where sum of winding is != 0
-            FillScans(workspace);
+            FillScans(workspace); // TODO: this is where we are spending most time
             //DiagnosticFillScans(workspace);
 
             // adjust the baseline here, to control 'jitter' caused by pixel-fitting
@@ -90,59 +95,65 @@ namespace FontReader.Draw
         }
 
         // ReSharper disable once UnusedMember.Local
-        private static void DiagnosticFillScans(byte[,] workspace)
+        private static void DiagnosticFillScans(EdgeWorkspace workspace)
         {
             if (workspace == null) return;
-            var ymax = workspace.GetLength(0);
-            var xmax = workspace.GetLength(1) - 1; // space to look ahead
+            var ymax = workspace.Height;
+            var xmax = workspace.Width - 1; // space to look ahead
+
+            var data = workspace.Data;
 
             for (int y = 0; y < ymax; y++)
             {
                 int w = 0;
                 bool prevUp = false;
+                var ypos = y * workspace.Width;
                 for (int x = 0; x < xmax; x++)
                 {
-                    if (workspace[y, x] != 0) workspace[y, x] |= INSIDE;
+                    if (data[ypos + x] != 0) data[ypos + x] |= INSIDE;
                 }
             }
         }
 
-        private static void FillScans(byte[,] workspace)
+        private static void FillScans(EdgeWorkspace workspace)
         {
             if (workspace == null) return;
-            var ymax = workspace.GetLength(0);
-            var xmax = workspace.GetLength(1) - 1; // space to look ahead
+            var ymax = workspace.Height;
+            var xmax = workspace.Width - 1; // space to look ahead
+
+            var data = workspace.Data;
 
             for (int y = 0; y < ymax; y++)
             {
                 int w = 0;
                 bool prevUp = false;
+                var ypos = y * workspace.Width;
                 for (int x = 0; x < xmax; x++)
                 {
-                    var v = workspace[y,x];
+                    var v = data[ypos + x];
                     var up = (v & DIR_UP) > 0;
                     var dn = (v & DIR_DOWN) > 0;
 
                     if (up && dn) {
                         prevUp = false;
-                        workspace[y,x] |= INSIDE;
+                        data[ypos + x] |= INSIDE;
                         continue;
                     }
 
                     if (up) {w=1; }
                     if (dn) {w=0; }
 
-                    var nextUp =  (workspace[y,x+1] & DIR_UP) > 0;
-                    var nextDown =  (workspace[y,x+1] & DIR_DOWN) > 0;
+                    var nextUp =  (data[ypos + x + 1] & DIR_UP) > 0;
+                    var nextDown = (data[ypos + x + 1] & DIR_DOWN) > 0;
 
-                    if (!up && !dn && w > 0) workspace[y, x] |= INSIDE;
-                    if (prevUp && dn && nextDown && !nextUp) workspace[y, x] |= INSIDE;
+                    if (!up && !dn && w > 0) data[ypos + x] |= INSIDE;
+                    if (prevUp && dn && nextDown && !nextUp) data[ypos + x] |= INSIDE;
                     prevUp = up;
                 }
             }
         }
 
-        private static void WalkContours(List<GlyphPoint[]> contours, byte[,] workspace)
+        private static void WalkContours(List<GlyphPoint[]> contours, EdgeWorkspace workspace)
         {
             if (contours == null) return;
             foreach (var contour in contours)
@@ -151,7 +162,7 @@ namespace FontReader.Draw
             }
         }
 
-        private static void RenderContour(byte[,] workspace, GlyphPoint[] contour)
+        private static void RenderContour(EdgeWorkspace workspace, GlyphPoint[] contour)
         {
             if (contour == null) return;
             if (workspace == null) return;
@@ -168,7 +179,7 @@ namespace FontReader.Draw
         /// <summary>
         /// Write directions between two points into the workspace.
         /// </summary>
-        private static void DirectionalBresenham(byte[,] workspace, GlyphPoint start, GlyphPoint end)
+        private static void DirectionalBresenham(EdgeWorkspace workspace, GlyphPoint start, GlyphPoint end)
         {
             if (workspace == null) return;
 
@@ -196,11 +207,13 @@ namespace FontReader.Draw
                 pxFlag |= DROPOUT; // a single pixel. We mark for drop-out protection
 
             int err = (dx>dy ? dx : -dy) / 2;
+            int w = workspace.Width;
+            var data = workspace.Data;
 
             for(;;){ // for each point, bit-OR our decided direction onto the pixel
 
                 // set pixel
-                workspace[y0, x0] |= (byte)pxFlag;
+                data[(y0 * w) + x0] |= (byte)pxFlag;
 
                 // end of line check
                 if (x0==x1 && y0==y1) break;
