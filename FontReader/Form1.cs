@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Windows.Forms;
@@ -14,6 +15,7 @@ namespace FontReader
             InitializeComponent();
             TestRun();
         }
+
         private void TestRun()
         {
             if (outputPictureBox.Image != null) {
@@ -36,12 +38,16 @@ namespace FontReader
                         "little note, nor long remember what we say here, but it can never forget what they did here.";
             var msg_4 = "ABCDE";
 
-
-            // Draw first message with angular font
+            var sw = new Stopwatch();
+            sw.Start();
+            
+            var prox = new FormsBitmap(img);
             float left = 25;
-            float baseline = 150f;
+            float baseline = 140f;
             float scale = 48f / daveFnt.Height();
             float letterSpace = 5;
+
+            // Draw first message with angular font
             for (int i = 0; i < msg_1.Length; i++)
             {
                 var glyph = daveFnt.ReadGlyph(msg_1[i]);
@@ -53,7 +59,7 @@ namespace FontReader
 
             // Draw second message with curvy font
             left = 25;
-            baseline = 250f;
+            baseline = 200f;
             scale = 0.05f;
             for (int i = 0; i < msg_2.Length; i++)
             {
@@ -65,8 +71,8 @@ namespace FontReader
             }
             
             // Draw second message with very curvy font
-            //left = 250;
-            baseline = 250f;
+            left = 25;
+            baseline = 280f;
             scale = 0.05f;
             for (int i = 0; i < msg_4.Length; i++)
             {
@@ -95,9 +101,8 @@ namespace FontReader
                 left += letterSpace;
             }
             
-            var prox = new FormsBitmap(img);
             
-            // Show a sample of the two sub-pixel AA strategies
+            // Show a sample of the sub-pixel AA strategy
             left = 5;
             baseline = 300f;
             scale = 16f / daveFnt.Height(); // about 11pt
@@ -105,7 +110,7 @@ namespace FontReader
             for (int i = 0; i < 58; i++)
             {
                 var glyph = daveFnt.ReadGlyph((char) ('A'+i));
-                Renderers.RenderSubPixel_RGB_Super3(prox, left, baseline + 20, scale, glyph, false); // this looks reasonable
+                Renderers.RenderSubPixel_RGB_Super3(prox, left, baseline + 20, scale, glyph, false);
                 left += (float)glyph.xMax * scale;
                 left += letterSpace;
             }
@@ -142,11 +147,11 @@ namespace FontReader
             baseline = 480f;
             scale = 8f / daveFnt.Height();
             letterSpace = 2.1f;
-            var ampGlyph = daveFnt.ReadGlyph('Η');
+            var ampGlyph = notoFnt.ReadGlyph('&');//daveFnt.ReadGlyph('Η');
             for (int i = 0; i < 50; i++)
             {
                 scale += 0.001f;
-                Renderers.RenderSubPixel_RGB_Super3(prox, left, baseline, scale, ampGlyph, true);
+                DrawGlyph(img, left, baseline, scale, ampGlyph, true);
                 left += (float)ampGlyph.xMax * scale;
                 left += letterSpace;
             }
@@ -164,6 +169,19 @@ namespace FontReader
                 left += (float)glyph.xMax * scale;
                 left += letterSpace;
             }
+
+            // Huge curve
+            scale = 370f / notoFnt.Height();
+            for (int i = 0; i < 1; i++)
+            {
+                var glyph = notoFnt.ReadGlyph('O'); // Show quality of curve-to-line interpolation
+                //Renderers.RenderSubPixel_RGB_Super3(prox, 600, 350, scale, glyph, false);
+                DrawGlyph(img, 600, 350, scale, glyph, false);
+            }
+
+
+            sw.Stop();
+            Text = "Glyph find & render took:" + sw.Elapsed;
 
             outputPictureBox.Image = img;
             Width = img.Width + 18;

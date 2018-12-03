@@ -45,18 +45,15 @@ namespace FontReader.Read
             {
                 var point = Points[p];
 
-                if (point != null)
-                {
-                    if (point.OnCurve) { hasCurves = true; }
+                if (point.OnCurve) { hasCurves = true; }
 
-                    var xpos = (point.X - xMin) * xScale;
-                    var ypos = (point.Y - yMin) * yScale;
+                var xpos = (point.X - xMin) * xScale;
+                var ypos = (point.Y - yMin) * yScale;
 
-                    if (xpos < 0) xpos = 0;
-                    if (ypos < 0) ypos = 0;
+                if (xpos < 0) xpos = 0;
+                if (ypos < 0) ypos = 0;
 
-                    contour.Add(new GlyphPoint { X = xpos + xOffset, Y = ypos + yOffset, OnCurve = point.OnCurve });
-                }
+                contour.Add(new GlyphPoint { X = xpos + xOffset, Y = ypos + yOffset, OnCurve = point.OnCurve });
 
                 if (p == ContourEnds[c])
                 {
@@ -88,7 +85,6 @@ namespace FontReader.Read
             for (int i = 0; i < Points.Length; i++)
             {
                 var p = Points[i];
-                if (p == null) continue;
                 xmin = Math.Min(p.X, xmin);
                 xmax = Math.Max(p.X, xmax);
                 ymin = Math.Min(p.Y, ymin);
@@ -102,40 +98,85 @@ namespace FontReader.Read
         private GlyphPoint[] NormaliseContour(IReadOnlyList<GlyphPoint> contour)
         {
             var final = new List<GlyphPoint>();
+            var offCurve = new List<GlyphPoint>();
             var len = contour.Count;
-            var offs = len - 1;
 
-            for (int i = 0; i < len; i++)
+            for (int i = 0; i <= len; i++)
             {
-                var mid = contour[i];
-                if (mid.OnCurve) { // normal point
-                    final.Add(mid);
+                var mid = contour[i % len];
+                if (mid.OnCurve) {
+                    if (offCurve.Count < 1) {
+                        final.Add(mid); // nothing special
+                        offCurve.Clear();
+                        offCurve.Add(mid);
+                    } else { // interpolation needed
+                        offCurve.Add(mid);
+                        final.AddRange(InterpolateCurve_Complex(offCurve));
+                        offCurve.Clear();
+                        offCurve.Add(mid);
+                    }
                     continue;
                 }
 
-                // curve point
-                var prev = contour[(i+offs) % len];
-                var next = contour[(i+1   ) % len];
-                var dx = prev.X - next.X;
-                var dy = prev.Y - next.Y;
-                var distSq = (dx*dx) + (dy*dy);
+                // add off-curve points until we hit another on-curve.
+                offCurve.Add(mid);
 
-                // TODO: this really isn't good enough.
-                if (distSq < 8)
-                {
-                    final.Add(new GlyphPoint { OnCurve = true,
-                        X = (prev.X + mid.X + next.X) / 3.0,
-                        Y = (prev.Y + mid.Y + next.Y) / 3.0 });
-                }
-                else
-                {
-                    var m0 = mid;
-                    final.Add(new GlyphPoint { OnCurve = true, X = (prev.X + m0.X) / 2.0, Y = (prev.Y + m0.Y) / 2.0 });
-                    final.Add(new GlyphPoint { OnCurve = true, X = (next.X + m0.X) / 2.0, Y = (next.Y + m0.Y) / 2.0 });
-                }
+                // TODO: This is resulting in distorted curves.
+                // I think the font spec must be doing something different.
+                // I wonder if it's making 'fake' on-curve points between
+                // off-curve points -- so all curves are order-2, but some
+                // of the on-curve points aren't specified.
             }
 
             return final.ToArray();
+        }
+
+        /// <summary>
+        /// A more refined curve breaker for larger sizes
+        /// </summary>
+        private static IEnumerable<GlyphPoint> InterpolateCurve_Complex(List<GlyphPoint> points)
+        {
+            /*var dx1 = prev.X - mid.X;
+            var dy1 = prev.Y - mid.Y;
+            var dx2 = mid.X - next.X;
+            var dy2 = mid.Y - next.Y;
+            var dist = Math.Sqrt((dx1 * dx1) + (dy1 * dy1) + (dx2 * dx2) + (dy2 * dy2));
+            if (dist <= 1) {
+                yield return mid;
+                yield break;
+            }*/
+
+            var inv = 0.01;//1.0 / dist;
+            var pp = points[0];
+            var minStep = 1;   // larger = less refined curve
+
+            for (double t = 0; t < 1; t+= inv)
+            {
+                var pt = ReducePoints_Rec(points.ToArray(), t, 1.0 - t);
+
+                if (Math.Abs(pp.X - pt.X) > minStep || Math.Abs(pp.Y - pt.Y) > minStep) {
+                    pp = pt;
+                    yield return pt;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Naïve de Casteljau's algorithm
+        /// TODO: make this in-place and iterative and merge back into parent
+        /// </summary>
+        private static GlyphPoint ReducePoints_Rec(GlyphPoint[] points, double t, double it)
+        {
+            if (points.Length == 1) return points[0];
+
+            var next = new GlyphPoint[points.Length - 1];
+            for (int i = 0; i < next.Length; i++)
+            {
+                var x = it * points[i].X + t * points[i+1].X;
+                var y = it * points[i].Y + t * points[i+1].Y;
+                next[i] = new GlyphPoint { X = x, Y = y };
+            }
+            return ReducePoints_Rec(next, t, it);
         }
     }
 }

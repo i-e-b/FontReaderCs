@@ -315,19 +315,16 @@ namespace FontReader.Read
             }
 
             // Fill out point data
-            ElaborateCoords(flags, points, (p,v) => p.X = v, SimpleGlyphFlags.X_IS_BYTE, SimpleGlyphFlags.X_DELTA, g.xMin, g.xMax);
-            ElaborateCoords(flags, points, (p,v) => p.Y = v, SimpleGlyphFlags.Y_IS_BYTE, SimpleGlyphFlags.Y_DELTA, g.yMin, g.yMax);
+            ElaborateCoords(flags, points, (i, v) => points[i].X = v, SimpleGlyphFlags.X_IS_BYTE, SimpleGlyphFlags.X_DELTA, g.xMin, g.xMax);
+            ElaborateCoords(flags, points, (i, v) => points[i].Y = v, SimpleGlyphFlags.Y_IS_BYTE, SimpleGlyphFlags.Y_DELTA, g.yMin, g.yMax);
 
             g.Points = points.ToArray();
             g.ContourEnds = ends.ToArray();
 
-            // TODO: expand glyph curves into paths?
-            // Maybe have another level after finding glyphs, and before rendering
-
             return g;
         }
 
-        private void ElaborateCoords(List<SimpleGlyphFlags> flags, List<GlyphPoint> points, Action<GlyphPoint, double> map, SimpleGlyphFlags byteFlag, SimpleGlyphFlags deltaFlag, double min, double max)
+        private void ElaborateCoords(List<SimpleGlyphFlags> flags, List<GlyphPoint> points, Action<int, double> map, SimpleGlyphFlags byteFlag, SimpleGlyphFlags deltaFlag, double min, double max)
         {
             var value = 0.0d;
 
@@ -347,7 +344,7 @@ namespace FontReader.Read
                     // this is why X and Y are separate
                 }
 
-                map(points[i], value);
+                map(i, value);
             }
         }
 

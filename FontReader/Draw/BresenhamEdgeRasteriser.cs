@@ -1,4 +1,5 @@
-﻿using FontReader.Read;
+﻿using System;
+using FontReader.Read;
 
 namespace FontReader.Draw
 {
@@ -49,8 +50,26 @@ namespace FontReader.Draw
 
             // 2. Run each scanline, filling where sum of winding is != 0
             FillScans(workspace);
+            //DiagnosticFillScans(workspace);
 
             return workspace;
+        }
+
+        private static void DiagnosticFillScans(byte[,] workspace)
+        {
+            if (workspace == null) return;
+            var ymax = workspace.GetLength(0);
+            var xmax = workspace.GetLength(1) - 1; // space to look ahead
+
+            for (int y = 0; y < ymax; y++)
+            {
+                int w = 0;
+                bool prevUp = false;
+                for (int x = 0; x < xmax; x++)
+                {
+                    if (workspace[y, x] != 0) workspace[y, x] |= INSIDE;
+                }
+            }
         }
 
         private static void FillScans(byte[,] workspace)
@@ -121,23 +140,23 @@ namespace FontReader.Draw
         /// </summary>
         private static void DirectionalBresenham(byte[,] workspace, GlyphPoint start, GlyphPoint end)
         {
-            if (workspace == null || start == null || end == null) return;
+            if (workspace == null) return;
 
-            var ddx = end.X - start.X;
-            var ddy = end.Y - start.Y;
+            var fdx = end.X - start.X;
+            var fdy = end.Y - start.Y;
 
-            int x0 = (int)start.X;
-            int y0 = (int)start.Y;
-            int x1 = (int)end.X;
-            int y1 = (int)end.Y;
+            int x0 = (int)Math.Round(start.X);
+            int y0 = (int)Math.Round(start.Y);
+            int x1 = (int)Math.Round(end.X);
+            int y1 = (int)Math.Round(end.Y);
 
             int dx = x1-x0, sx = x0<x1 ? 1 : -1;
             int dy = y1-y0, sy = y0<y1 ? 1 : -1;
             if (dx < 0) dx = -dx;
             if (dy < 0) dy = -dy;
 
-            byte xWindFlag = ddx < 0 ? DIR_LEFT : DIR_RIGHT;
-            byte yWindFlag = ddy < 0 ? DIR_DOWN : DIR_UP;
+            byte xWindFlag = fdx < 0 ? DIR_LEFT : DIR_RIGHT;
+            byte yWindFlag = fdy < 0 ? DIR_DOWN : DIR_UP;
             if (dy == 0) yWindFlag = 0;
             if (dx == 0) xWindFlag = 0;
 
