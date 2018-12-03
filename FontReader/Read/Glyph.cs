@@ -27,6 +27,7 @@ namespace FontReader.Read
         public GlyphPoint[] Points;
         public int[] ContourEnds;
 
+
         /// <summary>
         /// Reduce the glyph to a set of simple point contours.
         /// Curves will be re-drawn as segments
@@ -40,13 +41,10 @@ namespace FontReader.Read
             var c = 0;
             var contour = new List<GlyphPoint>();
             var plen = Points.Length;
-            var hasCurves = false;
 
             while (p < plen)
             {
                 var point = Points[p];
-
-                if (point.OnCurve) { hasCurves = true; }
 
                 var xpos = (point.X - xMin) * xScale;
                 var ypos = (point.Y - yMin) * yScale;
@@ -58,11 +56,8 @@ namespace FontReader.Read
 
                 if (p == ContourEnds[c])
                 {
-                    if (hasCurves) {
-                        outp.Add(NormaliseContour(contour));
-                    } else {
-                        outp.Add(contour.ToArray());
-                    }
+                    // TODO: merge this up to avoid a double-copy
+                    outp.Add(NormaliseContour(contour));
                     contour.Clear();
                     c++;
                 }
@@ -98,8 +93,8 @@ namespace FontReader.Read
         /// </summary>
         private GlyphPoint[] NormaliseContour(IReadOnlyList<GlyphPoint> contour)
         {
-            var final = new List<GlyphPoint>();
             var len = contour.Count;
+            var final = new List<GlyphPoint>(len * 4);
             var offs = len - 1;
 
             // If we get more than one 'off-curve' point in a row,

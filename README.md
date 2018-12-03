@@ -13,6 +13,7 @@ Font "NotoSans-Regular" is by Google, and is licensed under the SIL Open Font Li
 * [x] Anti-aliasing and sub-pixel rendering
 * [x] Try breaking curves in the font reader
 * [x] Dark-on-light rendering (or better, proper coloring and alpha?)
-* [ ] Basic auto hinting?
+* [x] Basic auto hinting? (grid fit + jitter control)
 * [ ] Better sizing interface (rather than scale)
+      - Font*Size container to cache contour normalisation
 * [ ] Try a simple "directional signed distance field" renderer (scan lines in horizonal and vertical separately?)

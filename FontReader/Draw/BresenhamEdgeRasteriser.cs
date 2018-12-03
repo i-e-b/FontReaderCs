@@ -20,6 +20,9 @@ namespace FontReader.Draw
         public const byte TOUCHED   = 0x20; // pixel has been processed
         public const byte DROPOUT   = 0x40; // pixel *might* be a small feature drop-out
 
+        [ThreadStatic]
+        private static byte[] sharedBuffer; // makes this non-reentrant
+
         /// <summary>
         /// Render a glyph at the given scale. Result is a grid of flag values.
         /// </summary>
@@ -43,12 +46,7 @@ namespace FontReader.Draw
             var width = (int)((xmax - xmin) * xScale) + 8;
             var height = (int)((ymax - ymin) * yScale) + 8;
 
-            var workspace = new EdgeWorkspace{
-                Height = height,
-                Width = width,
-                Data = new byte[width*height*2]
-            }; 
-            //var workspace = new byte[height, width]; // todo: cache this, grow as needed? ... also, make 1D?
+            var workspace = PrepareEdgeWorkspace(width, height);
 
             // 1. Grid fit / adjust the contours
             var contours = GridFitContours(glyph, xScale, yScale, out var yAdjust);
@@ -57,13 +55,36 @@ namespace FontReader.Draw
             WalkContours(contours, workspace); // also adds extra headroom for supersampling
 
             // 3. Run each scanline, filling where sum of winding is != 0
-            FillScans(workspace); // TODO: this is where we are spending most time
+            FillScans(workspace);
             //DiagnosticFillScans(workspace);
 
             // adjust the baseline here, to control 'jitter' caused by pixel-fitting
             if (baseline < 0) yAdjust -= 0.5f;
             baseline += yAdjust;
 
+            return workspace;
+        }
+
+        private static EdgeWorkspace PrepareEdgeWorkspace(int width, int height)
+        {
+            var requiredBufferSize = width * height;
+
+            if (sharedBuffer == null || sharedBuffer.Length < requiredBufferSize)
+            {
+                sharedBuffer = new byte[requiredBufferSize * 2];
+            }
+
+            for (int i = 0; i < requiredBufferSize; i++)
+            {
+                sharedBuffer[i] = 0;
+            }
+
+            var workspace = new EdgeWorkspace
+            {
+                Height = height,
+                Width = width,
+                Data = sharedBuffer
+            };
             return workspace;
         }
 
@@ -122,12 +143,13 @@ namespace FontReader.Draw
             var xmax = workspace.Width - 1; // space to look ahead
 
             var data = workspace.Data;
+            var w = workspace.Width;
 
             for (int y = 0; y < ymax; y++)
             {
-                int w = 0;
-                bool prevUp = false;
-                var ypos = y * workspace.Width;
+                int inside = 0;
+                var ypos = y * w;
+
                 for (int x = 0; x < xmax; x++)
                 {
                     var v = data[ypos + x];
@@ -135,20 +157,14 @@ namespace FontReader.Draw
                     var dn = (v & DIR_DOWN) > 0;
 
                     if (up && dn) {
-                        prevUp = false;
                         data[ypos + x] |= INSIDE;
                         continue;
                     }
 
-                    if (up) {w=1; }
-                    if (dn) {w=0; }
+                    if (up) {inside=1; }
+                    if (dn) {inside=0; }
 
-                    var nextUp =  (data[ypos + x + 1] & DIR_UP) > 0;
-                    var nextDown = (data[ypos + x + 1] & DIR_DOWN) > 0;
-
-                    if (!up && !dn && w > 0) data[ypos + x] |= INSIDE;
-                    if (prevUp && dn && nextDown && !nextUp) data[ypos + x] |= INSIDE;
-                    prevUp = up;
+                    if (!up && !dn && inside > 0) data[ypos + x] |= INSIDE;
                 }
             }
         }
