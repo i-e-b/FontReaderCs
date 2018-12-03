@@ -39,9 +39,9 @@ namespace FontReader.Draw
             baseline = (float) (glyph.yMin * yScale);
             leftShift = (float)(-glyph.xMin * xScale * 0.5); // I guess the 0.5 fudge-factor is due to lack of kerning support
 
-            var width = (int)((xmax - xmin) * xScale) + 2;
-            var height = (int)((ymax - ymin) * yScale) + 2;
-            var yAdjust = (baseline < 0) ? -0.5f : 0.0f;
+            var width = (int)((xmax - xmin) * xScale) + 8;
+            var height = (int)((ymax - ymin) * yScale) + 8;
+            var yAdjust = (baseline < 0) ? 1.5f : 2.0f; // extra headroom for supersampling
 
             var workspace = new byte[height, width];
 
@@ -52,9 +52,12 @@ namespace FontReader.Draw
             FillScans(workspace);
             //DiagnosticFillScans(workspace);
 
+            baseline += 1; // compensate for the headspace we added.
+
             return workspace;
         }
 
+        // ReSharper disable once UnusedMember.Local
         private static void DiagnosticFillScans(byte[,] workspace)
         {
             if (workspace == null) return;

@@ -116,6 +116,27 @@ namespace FontReader
             }
             
             left = 5;
+            baseline = 320f;
+            scale = 12f / notoFnt.Height();
+            for (int i = 0; i < 58; i++)
+            {
+                var glyph = notoFnt.ReadGlyph((char) ('A'+i));
+                Renderers.RenderSubPixel_RGB_Super3(prox, left, baseline + 20, scale, glyph, false);
+                left += (float)glyph.xMax * scale;
+                left += letterSpace;
+            }
+            left = 5;
+            baseline = 340f;
+            scale = 10f / notoFnt.Height();
+            for (int i = 0; i < 58; i++)
+            {
+                var glyph = notoFnt.ReadGlyph((char) ('A'+i));
+                Renderers.RenderSubPixel_RGB_Super3(prox, left, baseline + 20, scale, glyph, false);
+                left += (float)glyph.xMax * scale;
+                left += letterSpace;
+            }
+            
+            left = 5;
             baseline = 350f;
             scale = 10f / daveFnt.Height(); // very small.
             letterSpace = 1.5f;
@@ -145,8 +166,8 @@ namespace FontReader
             // Varying size
             left = 5;
             baseline = 480f;
-            scale = 8f / daveFnt.Height();
-            letterSpace = 2.1f;
+            scale = 4f / notoFnt.Height();
+            letterSpace = 0.8f;
             var ampGlyph = notoFnt.ReadGlyph('&');//daveFnt.ReadGlyph('Η');
             for (int i = 0; i < 50; i++)
             {
@@ -175,7 +196,6 @@ namespace FontReader
             for (int i = 0; i < 1; i++)
             {
                 var glyph = notoFnt.ReadGlyph('O'); // Show quality of curve-to-line interpolation
-                //Renderers.RenderSubPixel_RGB_Super3(prox, 600, 350, scale, glyph, false);
                 DrawGlyph(img, 600, 350, scale, glyph, false);
             }
 
