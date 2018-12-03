@@ -37,6 +37,8 @@ namespace FontReader
                         "living and dead, who struggled here, have consecrated it, far above our poor power to add or detract. The world will\n" +
                         "little note, nor long remember what we say here, but it can never forget what they did here.";
             var msg_4 = "ABCDE";
+            
+            var memBefore = GC.GetTotalMemory(false);
 
             var sw = new Stopwatch();
             sw.Start();
@@ -204,17 +206,21 @@ namespace FontReader
             Text = "Glyph find & render took: " + sw.Elapsed;
 
             // Prove that the render cache works:
-            var repeatglyph = notoFnt.ReadGlyph('&');
             scale = 10f / notoFnt.Height();
             var nullProx = new NullProxy();
             sw.Reset();
             sw.Start();
             for (int i = 0; i < 200_000; i++)
             {
-                Renderers.RenderSubPixel_RGB_Super3(nullProx, 0, 0, scale, repeatglyph, false);
+                var glyph = notoFnt.ReadGlyph((char)('a' + (i % 52)));
+                Renderers.RenderSubPixel_RGB_Super3(nullProx, 0, 0, scale, glyph, false);
             }
             sw.Stop();
             Text += "; Render stress test: " + sw.Elapsed;
+
+            var memAfter = GC.GetTotalMemory(false);
+            
+            Text += "; Memory use: " + ((memAfter - memBefore) / 1048576) + "MB";
 
             outputPictureBox.Image = img;
             Width = img.Width + 18;
