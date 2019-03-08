@@ -55,7 +55,7 @@ namespace FontReader.Draw
             //DiagnosticFillScans(workspace);
 
             // adjust the baseline here, to control 'jitter' caused by pixel-fitting
-            if (baseline < 0) yAdjust -= 0.5f;
+            if (baseline < 0) yAdjust += 0.4f; // adjust for rounding
             baseline += yAdjust;
 
             workspace.Baseline = baseline;
@@ -96,23 +96,28 @@ namespace FontReader.Draw
                 var prevY = int.MaxValue;
                 for (int i = 0; i < contour.Length; i++)
                 {
+                    int grid = 2;
                     var point = new GlyphPoint{
                         X = contour[i].X * xScale,
-                        Y = contour[i].Y * yScale
+                        Y = Math.Round(contour[i].Y * yScale * grid)
                     };
 
-                    adjY = Math.Min(adjY, Math.Round(point.Y - 0.5)); // calculate how 'wrong' the pixel fit will be
 
                     // pixel-fit the contour points
                     point.X = Math.Round(point.X);
-                    point.Y = Math.Round(point.Y);
+                    int intfitY = (((int)point.Y) / grid);
+                    point.Y = intfitY;
 
                     if ((int)point.X != prevX || (int)point.Y != prevY) { // ignore segments less than a pixel long
                         outContour.Add(point);
 
+                        // Maybe move this adjustment to the bresenham part, so the baselines are nicer?
+                        adjY = Math.Min(adjY, point.Y - (contour[i].Y * yScale)); // calculate how 'wrong' the pixel fit was
+
                         prevX = (int)point.X;
                         prevY = (int)point.Y;
                     }
+
                 }
                 output.Add(outContour.ToArray());
             }
