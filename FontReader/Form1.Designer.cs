@@ -29,7 +29,7 @@
         private void InitializeComponent()
         {
             this.outputPictureBox = new System.Windows.Forms.PictureBox();
-            ((System.ComponentModel.ISupportInitialize)(this.outputPictureBox)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize) (this.outputPictureBox)).BeginInit();
             this.SuspendLayout();
             // 
             // outputPictureBox
@@ -51,14 +51,13 @@
             this.Controls.Add(this.outputPictureBox);
             this.Name = "Form1";
             this.Text = "Form1";
-            ((System.ComponentModel.ISupportInitialize)(this.outputPictureBox)).EndInit();
+            ((System.ComponentModel.ISupportInitialize) (this.outputPictureBox)).EndInit();
             this.ResumeLayout(false);
-
         }
 
-        #endregion
-
         private System.Windows.Forms.PictureBox outputPictureBox;
+
+        #endregion
     }
 }
 

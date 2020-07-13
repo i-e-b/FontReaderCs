@@ -385,5 +385,23 @@ namespace FontReader.Read
             file.Seek(old);
             return offset + _tables["glyf"].Offset;
         }
+
+        public List<string> ListTablesKeys()
+        {
+            return _tables.Keys.ToList();
+        }
+
+        public object GetTable(string name)
+        {
+            // References:
+            // http://pfaedit.org/non-standard.html#FFTM
+            //
+            switch (name)
+            {
+                case "OS/2": return new TtfTableOS2(file, _tables[name]);
+
+                default: return null;
+            }
+        }
     }
 }

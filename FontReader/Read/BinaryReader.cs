@@ -71,6 +71,11 @@ namespace FontReader.Read
                    GetUint8();
         }
 
+        public Tag GetTag()
+        {
+            return new Tag(GetString(4));
+        }
+
         /// <summary>
         /// Get signed fixword size
         /// </summary>
@@ -135,6 +140,22 @@ namespace FontReader.Read
             int a = data[baseAddr+i];
             var b = data[baseAddr+i+1];
             return (short)((a << 8) + b);
+        }
+
+        public PanoseClassification GetPANOSE()
+        {
+            return new PanoseClassification{
+                bFamilyType = GetUint8(),
+                bSerifStyle = GetUint8(),
+                bWeight = GetUint8(),
+                bProportion = GetUint8(),
+                bContrast = GetUint8(),
+                bStrokeVersion = GetUint8(),
+                bArmStyle = GetUint8(),
+                bLetterform = GetUint8(),
+                bMidline = GetUint8(),
+                bXHeight = GetUint8()
+            };
         }
     }
 }

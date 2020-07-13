@@ -10,17 +10,18 @@ namespace FontReader
 {
     public partial class Form1 : Form
     {
+        readonly FontInfoWindow _infoWindow;
+        
         public Form1()
         {
             InitializeComponent();
+            _infoWindow = new FontInfoWindow();
             TestRun();
         }
 
         private void TestRun()
         {
-            if (outputPictureBox.Image != null) {
-                outputPictureBox.Image.Dispose();
-            }
+            outputPictureBox?.Image?.Dispose();
             var img = new Bitmap(1024, 600, PixelFormat.Format24bppRgb);
             using(var g = Graphics.FromImage(img)){
                 g.FillRectangle(Brushes.White, 0, 400, 1024, 600);
@@ -30,6 +31,9 @@ namespace FontReader
             var notoFnt = new TrueTypeFont("NotoSans-Regular.ttf"); // standard professional font
             var bendyFnt = new TrueTypeFont("bendy.ttf");           // a font with extreme curves for testing segmentation
             var guthenFnt = new TrueTypeFont("guthen_bloots.ttf");  // a curvy font
+            
+            _infoWindow.SetFont(daveFnt);
+            _infoWindow.Show();
 
             var msg_1 = "Hello, world! i0($} ▚ ¾ ∜ -_¬~";
             var msg_2 = "Got to be funky. CQUPOJ8";

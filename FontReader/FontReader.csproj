@@ -8,10 +8,11 @@
     <OutputType>WinExe</OutputType>
     <RootNamespace>FontReader</RootNamespace>
     <AssemblyName>FontReader</AssemblyName>
-    <TargetFrameworkVersion>v4.7</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <Deterministic>true</Deterministic>
+    <LangVersion>8</LangVersion>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -50,6 +51,12 @@
     <Compile Include="Draw\EdgeWorkspace.cs" />
     <Compile Include="Draw\Renderers.cs" />
     <Compile Include="Draw\BresenhamEdgeRasteriser.cs" />
+    <Compile Include="FontInfoWindow.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="FontInfoWindow.Designer.cs">
+      <DependentUpon>FontInfoWindow.cs</DependentUpon>
+    </Compile>
     <Compile Include="Read\BinaryReader.cs" />
     <Compile Include="Read\CompoundComponent.cs" />
     <Compile Include="Read\CompoundGlyphFlags.cs" />
@@ -68,7 +75,13 @@
     <Compile Include="Read\OffsetEntry.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Read\PanoseClassification.cs" />
     <Compile Include="Read\SimpleGlyphFlags.cs" />
+    <Compile Include="Read\Tag.cs" />
+    <Compile Include="Read\TtfTableOS2.cs" />
+    <EmbeddedResource Include="FontInfoWindow.resx">
+      <DependentUpon>FontInfoWindow.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Form1.resx">
       <DependentUpon>Form1.cs</DependentUpon>
     </EmbeddedResource>
