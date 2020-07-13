@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 
@@ -11,6 +12,7 @@ namespace FontReader.Read
     public class BinaryReader {
         private readonly byte[] data;
         private long pos;
+        private Stack<long> _offsets = new Stack<long>();
 
         /// <summary>
         /// Load from a file
@@ -156,6 +158,16 @@ namespace FontReader.Read
                 bMidline = GetUint8(),
                 bXHeight = GetUint8()
             };
+        }
+
+        public void PushPosition()
+        {
+            _offsets.Push(Position());
+        }
+
+        public void PopPosition()
+        {
+            Seek(_offsets.Pop());
         }
     }
 }

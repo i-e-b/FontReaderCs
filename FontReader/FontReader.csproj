@@ -78,6 +78,7 @@
     <Compile Include="Read\PanoseClassification.cs" />
     <Compile Include="Read\SimpleGlyphFlags.cs" />
     <Compile Include="Read\Tag.cs" />
+    <Compile Include="Read\TtfTableName.cs" />
     <Compile Include="Read\TtfTableOS2.cs" />
     <EmbeddedResource Include="FontInfoWindow.resx">
       <DependentUpon>FontInfoWindow.cs</DependentUpon>
