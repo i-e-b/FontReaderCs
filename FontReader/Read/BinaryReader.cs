@@ -10,9 +10,9 @@ namespace FontReader.Read
     /// Byte reader for TTF / OpenType files
     /// </summary>
     public class BinaryReader {
-        private readonly byte[] data;
-        private long pos;
-        private Stack<long> _offsets = new Stack<long>();
+        private readonly byte[] _data;
+        private long _pos;
+        private readonly Stack<long> _offsets = new Stack<long>();
 
         /// <summary>
         /// Load from a file
@@ -20,10 +20,10 @@ namespace FontReader.Read
         public BinaryReader(string filename)
         {
             if (filename == null || !File.Exists(filename)) throw new Exception("Could not read font file");
-            data = File.ReadAllBytes(filename);
-            if (data == null) throw new Exception("Failed to read file");
+            _data = File.ReadAllBytes(filename);
+            if (_data == null) throw new Exception("Failed to read file");
 
-            pos = 0;
+            _pos = 0;
         }
 
         /// <summary>
@@ -31,18 +31,18 @@ namespace FontReader.Read
         /// </summary>
         public long Seek(long newPos)
         {
-            var oldPos = pos;
-            pos = newPos;
+            var oldPos = _pos;
+            _pos = newPos;
             return oldPos;
         }
 
         /// <summary>
         /// Return current position
         /// </summary>
-        public long Position() => pos;
+        public long Position() => _pos;
 
         /// <summary> Read an unsigned byte from current position and advance </summary>
-        public int GetUint8(){ return data[pos++]; } 
+        public int GetUint8(){ return _data[_pos++]; } 
         
         /// <summary> Read an unsigned 16bit word from current position and advance </summary>
         public ushort GetUint16(){ return (ushort) ((GetUint8() << 8) + GetUint8()); }
@@ -117,7 +117,7 @@ namespace FontReader.Read
         /// </summary>
         public void Skip(int dist)
         {
-            pos += dist;
+            _pos += dist;
         }
 
         /// <summary>
@@ -127,8 +127,8 @@ namespace FontReader.Read
         public ushort PickUint16(long baseAddr, int index)
         {
             var i = index*2;
-            var a = data[baseAddr+i];
-            var b = data[baseAddr+i+1];
+            var a = _data[baseAddr+i];
+            var b = _data[baseAddr+i+1];
             return (ushort)((a << 8) + b);
         }
         
@@ -139,12 +139,12 @@ namespace FontReader.Read
         public short PickInt16(long baseAddr, int index)
         {
             var i = index*2;
-            int a = data[baseAddr+i];
-            var b = data[baseAddr+i+1];
+            int a = _data[baseAddr+i];
+            var b = _data[baseAddr+i+1];
             return (short)((a << 8) + b);
         }
 
-        public PanoseClassification GetPANOSE()
+        public PanoseClassification GetPanose()
         {
             return new PanoseClassification{
                 bFamilyType = GetUint8(),

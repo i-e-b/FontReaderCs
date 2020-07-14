@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using FontReader.Read;
+using JetBrains.Annotations;
 
 namespace FontReader.Draw
 {
@@ -9,16 +10,16 @@ namespace FontReader.Draw
     /// </summary>
     public class BresenhamEdgeRasteriser
     {
-        public const byte INSIDE    = 0x01; // pixel is inside the glyph (for filling)
+        public const byte Inside    = 0x01; // pixel is inside the glyph (for filling)
 
-        public const byte DIR_UP    = 0x02; // pixel Y direction is 'up' (+1)
-        public const byte DIR_DOWN  = 0x04; // pixel Y direction is 'down' (-1)
+        public const byte DirUp    = 0x02; // pixel Y direction is 'up' (+1)
+        public const byte DirDown  = 0x04; // pixel Y direction is 'down' (-1)
 
-        public const byte DIR_RIGHT = 0x08; // pixel X direction is 'right' (+1)
-        public const byte DIR_LEFT  = 0x10; // pixel X direction is 'left' (-1)
+        public const byte DirRight = 0x08; // pixel X direction is 'right' (+1)
+        public const byte DirLeft  = 0x10; // pixel X direction is 'left' (-1)
 
-        public const byte TOUCHED   = 0x20; // pixel has been processed
-        public const byte DROPOUT   = 0x40; // pixel *might* be a small feature drop-out
+        public const byte Touched   = 0x20; // pixel has been processed
+        public const byte Dropout   = 0x40; // pixel *might* be a small feature drop-out
 
         /// <summary>
         /// Render a glyph at the given scale. Result is a grid of flag values.
@@ -26,11 +27,9 @@ namespace FontReader.Draw
         /// <param name="glyph">Glyph to render</param>
         /// <param name="xScale">Scale factor</param>
         /// <param name="yScale">Scale factor</param>
-        /// <param name="baseline">Offset from grid bottom to baseline</param>
-        /// <param name="leftShift">Offset from grid left to character left</param>
-        public static EdgeWorkspace Rasterise(Glyph glyph, float xScale, float yScale)
+        [NotNull]public static EdgeWorkspace Rasterise(Glyph glyph, float xScale, float yScale)
         {
-            if (glyph == null) return null;
+            if (glyph == null) return EdgeWorkspace.Empty();
             if (glyph.GlyphType != GlyphTypes.Simple) return EdgeWorkspace.Empty();
 
             // glyph sizes are not reliable for this.
@@ -48,9 +47,9 @@ namespace FontReader.Draw
             var contours = GridFitContours(glyph, xScale, yScale, out var yAdjust);
 
             // 2. Walk around all the contours, setting scan-line winding data.
-            WalkContours(contours, workspace); // also adds extra headroom for supersampling
+            WalkContours(contours, workspace); // also adds extra headroom for super sampling
 
-            // 3. Run each scanline, filling where sum of winding is != 0
+            // 3. Run each scan line, filling where sum of winding is != 0
             FillScans(workspace);
             //DiagnosticFillScans(workspace);
 
@@ -64,7 +63,7 @@ namespace FontReader.Draw
             return workspace;
         }
 
-        private static EdgeWorkspace PrepareEdgeWorkspace(int width, int height)
+        [NotNull]private static EdgeWorkspace PrepareEdgeWorkspace(int width, int height)
         {
             var requiredBufferSize = width * height;
 
@@ -77,7 +76,7 @@ namespace FontReader.Draw
             return workspace;
         }
 
-        private static List<GlyphPoint[]> GridFitContours(Glyph glyph, float xScale, float yScale, out float yAdj)
+        [NotNull]private static List<GlyphPoint[]> GridFitContours(Glyph glyph, float xScale, float yScale, out float yAdj)
         {
             yAdj = 0;
             if (glyph == null) return new List<GlyphPoint[]>();
@@ -140,7 +139,7 @@ namespace FontReader.Draw
                 var ypos = y * workspace.Width;
                 for (int x = 0; x < xmax; x++)
                 {
-                    if (data[ypos + x] != 0) data[ypos + x] |= INSIDE;
+                    if (data[ypos + x] != 0) data[ypos + x] |= Inside;
                 }
             }
         }
@@ -162,18 +161,18 @@ namespace FontReader.Draw
                 for (int x = 0; x < xmax; x++)
                 {
                     var v = data[ypos + x];
-                    var up = (v & DIR_UP) > 0;
-                    var dn = (v & DIR_DOWN) > 0;
+                    var up = (v & DirUp) > 0;
+                    var dn = (v & DirDown) > 0;
 
                     if (up && dn) {
-                        data[ypos + x] |= INSIDE;
+                        data[ypos + x] |= Inside;
                         continue;
                     }
 
                     if (up) {inside=1; }
                     if (dn) {inside=0; }
 
-                    if (!up && !dn && inside > 0) data[ypos + x] |= INSIDE;
+                    if (!up && !dn && inside > 0) data[ypos + x] |= Inside;
                 }
             }
         }
@@ -221,15 +220,15 @@ namespace FontReader.Draw
             if (dx < 0) dx = -dx;
             if (dy < 0) dy = -dy;
 
-            byte xWindFlag = fdx < 0 ? DIR_LEFT : DIR_RIGHT;
-            byte yWindFlag = fdy < 0 ? DIR_DOWN : DIR_UP;
+            byte xWindFlag = fdx < 0 ? DirLeft : DirRight;
+            byte yWindFlag = fdy < 0 ? DirDown : DirUp;
             if (dy == 0) yWindFlag = 0;
             if (dx == 0) xWindFlag = 0;
 
-            int pxFlag = yWindFlag | xWindFlag | TOUCHED; // assume first pixel makes a full movement
+            int pxFlag = yWindFlag | xWindFlag | Touched; // assume first pixel makes a full movement
 
             if (dy == 0 && dx == 0)
-                pxFlag |= DROPOUT; // a single pixel. We mark for drop-out protection
+                pxFlag |= Dropout; // a single pixel. We mark for drop-out protection
 
             int err = (dx>dy ? dx : -dy) / 2;
             int w = workspace.Width;
@@ -243,7 +242,7 @@ namespace FontReader.Draw
                 // end of line check
                 if (x0==x1 && y0==y1) break;
 
-                pxFlag = TOUCHED;
+                pxFlag = Touched;
                 var e2 = err;
                 if (e2 >-dx) { err -= dy; x0 += sx; pxFlag |= xWindFlag; }
                 if (e2 < dy) { err += dx; y0 += sy; pxFlag |= yWindFlag; }

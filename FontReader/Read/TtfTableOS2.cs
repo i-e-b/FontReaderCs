@@ -1,4 +1,8 @@
 ﻿using System;
+using JetBrains.Annotations;
+// ReSharper disable UnusedAutoPropertyAccessor.Global
+
+// ReSharper disable InconsistentNaming
 
 namespace FontReader.Read
 {
@@ -8,6 +12,7 @@ namespace FontReader.Read
         
         public TtfTableOS2(BinaryReader file, OffsetEntry table)
         {
+            if (file == null) throw new ArgumentNullException(nameof(file));
             file.Seek(table.Offset);
             
             // See https://docs.microsoft.com/en-gb/typography/opentype/spec/os2
@@ -30,14 +35,14 @@ namespace FontReader.Read
             }
         }
 
-        private void ReadVersion5(BinaryReader file)
+        private void ReadVersion5([NotNull]BinaryReader file)
         {
             ReadVersion4(file);
             usLowerOpticalPointSize = file.GetUint16();
             usUpperOpticalPointSize = file.GetUint16();
         }
 
-        private void ReadVersion4(BinaryReader file)
+        private void ReadVersion4([NotNull]BinaryReader file)
         {
             xAvgCharWidth = file.GetInt16();
             usWeightClass = file.GetUint16();
@@ -54,7 +59,7 @@ namespace FontReader.Read
             yStrikeoutSize = file.GetInt16();
             yStrikeoutPosition = file.GetInt16();
             sFamilyClass = file.GetInt16();
-            panose = file.GetPANOSE();
+            panose = file.GetPanose();
             ulUnicodeRange1 = file.GetUint32();
             ulUnicodeRange2 = file.GetUint32();
             ulUnicodeRange3 = file.GetUint32();

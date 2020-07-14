@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using FontReader.Read;
+using JetBrains.Annotations;
 
 namespace FontReader.Draw
 {
@@ -34,7 +35,7 @@ namespace FontReader.Draw
         }
 
 
-        private static readonly Dictionary<string, RenderCacheEntry> _renderCache = new Dictionary<string, RenderCacheEntry>();
+        [NotNull]private static readonly Dictionary<string, RenderCacheEntry> RenderCache = new Dictionary<string, RenderCacheEntry>();
 
         /// <summary>
         /// Render small font sizes with a super-sampling sub-pixel algorithm. Super-samples only in the x direction.
@@ -42,6 +43,7 @@ namespace FontReader.Draw
         /// </summary>
         public static void RenderSubPixel_RGB_Super3(BitmapProxy img, float dx, float dy, float scale, Glyph glyph, bool inverted)
         {
+            if (glyph == null) throw new ArgumentNullException(nameof(glyph));
             const int bright = 17;
 
             float leftShift;
@@ -51,8 +53,8 @@ namespace FontReader.Draw
             int width;
 
             var cacheKey = glyph.SourceCharacter + scale + glyph.SourceFont;
-            if (_renderCache.ContainsKey(cacheKey)) {
-                var ce = _renderCache[cacheKey];
+            if (RenderCache.ContainsKey(cacheKey)) {
+                var ce = RenderCache[cacheKey];
                 table = ce.Table;
                 width = ce.Width;
                 height = ce.Height;
@@ -69,7 +71,7 @@ namespace FontReader.Draw
 
                 if (baseline*baseline < 1) baseline = 0;
 
-                var topsFlag = BresenhamEdgeRasteriser.DIR_RIGHT | BresenhamEdgeRasteriser.DIR_LEFT | BresenhamEdgeRasteriser.DROPOUT;
+                var topsFlag = BresenhamEdgeRasteriser.DirRight | BresenhamEdgeRasteriser.DirLeft | BresenhamEdgeRasteriser.Dropout;
 
                 var data = workspace.Data;
                 var w = workspace.Width;
@@ -96,9 +98,9 @@ namespace FontReader.Draw
 
                         // first try the simple case of all pixels in:
                         if (
-                               (_1 & BresenhamEdgeRasteriser.INSIDE) > 0
-                            && (_2 & BresenhamEdgeRasteriser.INSIDE) > 0
-                            && (_3 & BresenhamEdgeRasteriser.INSIDE) > 0
+                               (_1 & BresenhamEdgeRasteriser.Inside) > 0
+                            && (_2 & BresenhamEdgeRasteriser.Inside) > 0
+                            && (_3 & BresenhamEdgeRasteriser.Inside) > 0
                             )
                         {
                             table[yout + x] = 0xffffff;
@@ -110,9 +112,9 @@ namespace FontReader.Draw
 
                         var flag = _1;
                         tops = (flag & topsFlag) > 0 ? topS : 0;
-                        ins = (flag & BresenhamEdgeRasteriser.INSIDE) > 0 ? insS : 0;
-                        left = (flag & BresenhamEdgeRasteriser.DIR_UP) > 0 ? sideS : 0;
-                        right = (flag & BresenhamEdgeRasteriser.DIR_DOWN) > 0 ? sideS : 0;
+                        ins = (flag & BresenhamEdgeRasteriser.Inside) > 0 ? insS : 0;
+                        left = (flag & BresenhamEdgeRasteriser.DirUp) > 0 ? sideS : 0;
+                        right = (flag & BresenhamEdgeRasteriser.DirDown) > 0 ? sideS : 0;
                         if (ins > 0 || left > 0 || right > 0) tops = 0;
 
                         b += tops + ins + (left * 2);
@@ -121,9 +123,9 @@ namespace FontReader.Draw
 
                         flag = _2;
                         tops = (flag & topsFlag) > 0 ? topS : 0;
-                        ins = (flag & BresenhamEdgeRasteriser.INSIDE) > 0 ? insS : 0;
-                        left = (flag & BresenhamEdgeRasteriser.DIR_UP) > 0 ? sideS : 0;
-                        right = (flag & BresenhamEdgeRasteriser.DIR_DOWN) > 0 ? sideS : 0;
+                        ins = (flag & BresenhamEdgeRasteriser.Inside) > 0 ? insS : 0;
+                        left = (flag & BresenhamEdgeRasteriser.DirUp) > 0 ? sideS : 0;
+                        right = (flag & BresenhamEdgeRasteriser.DirDown) > 0 ? sideS : 0;
                         if (ins > 0 || left > 0 || right > 0) tops = 0;
 
                         b += tops + ins + (left * 2);
@@ -132,9 +134,9 @@ namespace FontReader.Draw
 
                         flag = _3;
                         tops = (flag & topsFlag) > 0 ? topS : 0;
-                        ins = (flag & BresenhamEdgeRasteriser.INSIDE) > 0 ? insS : 0;
-                        left = (flag & BresenhamEdgeRasteriser.DIR_UP) > 0 ? sideS : 0;
-                        right = (flag & BresenhamEdgeRasteriser.DIR_DOWN) > 0 ? sideS : 0;
+                        ins = (flag & BresenhamEdgeRasteriser.Inside) > 0 ? insS : 0;
+                        left = (flag & BresenhamEdgeRasteriser.DirUp) > 0 ? sideS : 0;
+                        right = (flag & BresenhamEdgeRasteriser.DirDown) > 0 ? sideS : 0;
                         if (ins > 0 || left > 0 || right > 0) tops = 0;
 
                         b += tops + ins + (left * 2);
@@ -159,13 +161,13 @@ namespace FontReader.Draw
                     LeftShift = leftShift,
                     Table = table
                 };
-                if (_renderCache.ContainsKey(cacheKey)) _renderCache[cacheKey] = entry;
-                else _renderCache.Add(cacheKey, entry);
+                if (RenderCache.ContainsKey(cacheKey)) RenderCache[cacheKey] = entry;
+                else RenderCache.Add(cacheKey, entry);
             }
 
             // Stupid way to keep the cache smallish:
-            if (_renderCache.Count > 100)
-                _renderCache.Clear();
+            if (RenderCache.Count > 100)
+                RenderCache.Clear();
 
             // now render the table to an image
             for (int y = 0; y < height; y++)
@@ -225,18 +227,18 @@ namespace FontReader.Draw
                 {
                     var sx = x*xos;
                     int v;
-                    v  = data[sy   + sx  ] & BresenhamEdgeRasteriser.INSIDE; // based on `INSIDE` == 1
-                    v += data[sy   + sx+1] & BresenhamEdgeRasteriser.INSIDE;
-                    v += data[sy+w + sx  ] & BresenhamEdgeRasteriser.INSIDE;
-                    v += data[sy+w + sx+1] & BresenhamEdgeRasteriser.INSIDE;
-                    v += data[sy+w2+ sx  ] & BresenhamEdgeRasteriser.INSIDE;
-                    v += data[sy+w2+ sx+1] & BresenhamEdgeRasteriser.INSIDE;
+                    v  = data[sy   + sx  ] & BresenhamEdgeRasteriser.Inside; // based on `INSIDE` == 1
+                    v += data[sy   + sx+1] & BresenhamEdgeRasteriser.Inside;
+                    v += data[sy+w + sx  ] & BresenhamEdgeRasteriser.Inside;
+                    v += data[sy+w + sx+1] & BresenhamEdgeRasteriser.Inside;
+                    v += data[sy+w2+ sx  ] & BresenhamEdgeRasteriser.Inside;
+                    v += data[sy+w2+ sx+1] & BresenhamEdgeRasteriser.Inside;
 
                     // slightly over-run in Y to smooth slopes further. The `ScanlineRasteriser` adds some buffer space for this
-                    v += data[sy+w3+ sx  ] & BresenhamEdgeRasteriser.INSIDE;
-                    v += data[sy+w3+ sx+1] & BresenhamEdgeRasteriser.INSIDE;
-                    v += data[sy+w4+ sx  ] & BresenhamEdgeRasteriser.INSIDE;
-                    v += data[sy+w4+ sx+1] & BresenhamEdgeRasteriser.INSIDE;
+                    v += data[sy+w3+ sx  ] & BresenhamEdgeRasteriser.Inside;
+                    v += data[sy+w3+ sx+1] & BresenhamEdgeRasteriser.Inside;
+                    v += data[sy+w4+ sx  ] & BresenhamEdgeRasteriser.Inside;
+                    v += data[sy+w4+ sx+1] & BresenhamEdgeRasteriser.Inside;
 
                     if (v == 0) continue;
                     v *= 255 / 10;

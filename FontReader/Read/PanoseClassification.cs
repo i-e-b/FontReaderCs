@@ -1,4 +1,5 @@
-﻿namespace FontReader.Read
+﻿// ReSharper disable InconsistentNaming
+namespace FontReader.Read
 {
     public class PanoseClassification
     {

@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using JetBrains.Annotations;
+// ReSharper disable InconsistentNaming
 
 namespace FontReader.Read
 {
@@ -53,19 +55,19 @@ namespace FontReader.Read
         /// Curves will be re-drawn as segments.
         /// This list will be cached, so do NOT directly edit the output
         /// </summary>
-        public List<GlyphPoint[]> NormalisedContours() {
+        [NotNull]public List<GlyphPoint[]> NormalisedContours() {
             if (ContourCache != null) return ContourCache;
 
-            if (Points == null || Points.Length < 1) return null;
-            if (ContourEnds == null || ContourEnds.Length < 1) return null;
+            if (Points == null || Points.Length < 1) return new List<GlyphPoint[]>();
+            if (ContourEnds == null || ContourEnds.Length < 1) return new List<GlyphPoint[]>();
 
             var outp = new List<GlyphPoint[]>();
             var p = 0;
             var c = 0;
             var contour = new List<GlyphPoint>();
-            var plen = Points.Length;
+            var pLen = Points.Length;
 
-            while (p < plen)
+            while (p < pLen)
             {
                 var point = Points[p];
 

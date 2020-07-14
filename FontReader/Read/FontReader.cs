@@ -7,9 +7,9 @@ namespace FontReader.Read
     public class TrueTypeFont : IFontReader
     {
         private readonly string _filename;
-        public const uint HEADER_MAGIC = 0x5f0f3cf5;
+        public const uint HeaderMagic = 0x5f0f3cf5;
 
-        private readonly BinaryReader file;
+        private readonly BinaryReader _file;
         private readonly Dictionary<string, OffsetEntry> _tables;
         private readonly Dictionary<char, int> _unicodeIndexes;
         private readonly Dictionary<int, Glyph> _glyphCache;
@@ -21,11 +21,11 @@ namespace FontReader.Read
         private ushort _entrySelector;
         private ushort _rangeShift;
         private int _length;
-
+        
         public TrueTypeFont(string filename)
         {
             _filename = filename;
-            file = new BinaryReader(filename);
+            _file = new BinaryReader(filename);
             _unicodeIndexes = new Dictionary<char, int>();
             _glyphCache = new Dictionary<int, Glyph>();
 
@@ -80,18 +80,18 @@ namespace FontReader.Read
             if (offset >= _tables["glyf"].Offset + _tables["glyf"].Length) throw new Exception("Bad font: Invalid glyph offset (too high) at index " + index);
             if (offset < _tables["glyf"].Offset) throw new Exception("Bad font: Invalid glyph offset (too low) at index" + index);
 
-            file.Seek(offset);
+            _file.Seek(offset);
             var glyph = new Glyph{
-                NumberOfContours = file.GetInt16(),
-                xMin = file.GetFWord(),
-                yMin = file.GetFWord(),
-                xMax = file.GetFWord(),
-                yMax = file.GetFWord()
+                NumberOfContours = _file.GetInt16(),
+                xMin = _file.GetFWord(),
+                yMin = _file.GetFWord(),
+                xMax = _file.GetFWord(),
+                yMax = _file.GetFWord()
             };
 
             if (glyph.NumberOfContours < -1) throw new Exception("Bad font: Invalid contour count at index " + index);
 
-            var baseOffset = file.Position();
+            var baseOffset = _file.Position();
             if (forceEmpty || glyph.NumberOfContours == 0) return EmptyGlyph(glyph);
             if (glyph.NumberOfContours == -1) return ReadCompoundGlyph(glyph, baseOffset);
             return ReadSimpleGlyph(glyph);
@@ -104,18 +104,18 @@ namespace FontReader.Read
             // then call down to the index based ReadGlyph.
 
             if ( ! _tables.ContainsKey("cmap")) throw new Exception("Can't translate character: cmap table missing");
-            file.Seek(_tables["cmap"].Offset);
+            _file.Seek(_tables["cmap"].Offset);
 
-            var vers = file.GetUint16();
-            var numTables = file.GetUint16();
+            var vers = _file.GetUint16();
+            var numTables = _file.GetUint16();
             var offset = 0u;
             var found = false;
 
             for (int i = 0; i < numTables; i++)
             {
-                var platform = file.GetUint16();
-                var encoding = file.GetUint16();
-                offset = file.GetUint32();
+                var platform = _file.GetUint16();
+                var encoding = _file.GetUint16();
+                offset = _file.GetUint32();
 
                 if (platform == 3 && encoding == 1) // Unicode 2 byte encoding for Basic Multilingual Plane
                 {
@@ -129,23 +129,23 @@ namespace FontReader.Read
             }
             
             // format 4 table
-            if (offset < file.Position()) {file.Seek(_tables["cmap"].Offset + offset); } // guessing
-            else { file.Seek(offset); }
+            if (offset < _file.Position()) {_file.Seek(_tables["cmap"].Offset + offset); } // guessing
+            else { _file.Seek(offset); }
 
-            var subtableFmt = file.GetUint16();
+            var subtableFmt = _file.GetUint16();
 
-            var byteLength = file.GetUint16();
-            var res1 = file.GetUint16(); // should be 0
-            var segCountX2 = file.GetUint16();
-            var searchRange = file.GetUint16();
-            var entrySelector = file.GetUint16();
-            var rangeShift = file.GetUint16();
+            var byteLength = _file.GetUint16();
+            var res1 = _file.GetUint16(); // should be 0
+            var segCountX2 = _file.GetUint16();
+            var searchRange = _file.GetUint16();
+            var entrySelector = _file.GetUint16();
+            var rangeShift = _file.GetUint16();
 
             if (subtableFmt != 4) throw new Exception("Invalid font: Unicode BMP table with non- format 4 subtable");
             
             // read the parallel arrays
             var segs = segCountX2 / 2;
-            var endsBase = file.Position();
+            var endsBase = _file.Position();
             var startsBase = endsBase + segCountX2 + 2;
             var idDeltaBase = startsBase + segCountX2;
             var idRangeOffsetBase = idDeltaBase + segCountX2;
@@ -156,8 +156,8 @@ namespace FontReader.Read
 
             for (int i = 0; i < segs; i++)
             {
-                int end = file.PickUint16(endsBase, i);
-                int start = file.PickUint16(startsBase, i);
+                int end = _file.PickUint16(endsBase, i);
+                int start = _file.PickUint16(startsBase, i);
                 if (end >= c && start <= c) {
                     targetSegment = i;
                     break;
@@ -166,10 +166,10 @@ namespace FontReader.Read
             
             if (targetSegment < 0) return 0; // the specific 'missing' glyph
 
-            var rangeOffset = file.PickUint16(idRangeOffsetBase, targetSegment);
+            var rangeOffset = _file.PickUint16(idRangeOffsetBase, targetSegment);
             if (rangeOffset == 0) {
                 // direct lookup:
-                var lu = file.PickInt16(idDeltaBase, targetSegment); // this can represent a negative by way of the modulo
+                var lu = _file.PickInt16(idDeltaBase, targetSegment); // this can represent a negative by way of the modulo
                 var glyphIdx = (lu + c) % 65536;
                 return glyphIdx;
             }
@@ -181,11 +181,11 @@ namespace FontReader.Read
             // https://github.com/LayoutFarm/Typography/wiki/How-To-Translate-Unicode-Character-Codes-to-TrueType-Glyph-Indices-in-Windows-95
             // https://developer.apple.com/fonts/TrueType-Reference-Manual/RM06/Chap6cmap.html
 
-            var ros = file.PickUint16(idRangeOffsetBase, targetSegment);
-            var startc = file.PickUint16(startsBase, targetSegment);
+            var ros = _file.PickUint16(idRangeOffsetBase, targetSegment);
+            var startc = _file.PickUint16(startsBase, targetSegment);
             var offsro = idRangeOffsetBase + (targetSegment * 2);
             var glyphIndexAddress = ros + 2 * (c - startc) + offsro;
-            var res = file.PickInt16(glyphIndexAddress, 0);
+            var res = _file.PickInt16(glyphIndexAddress, 0);
 
             return res;
         }
@@ -194,42 +194,42 @@ namespace FontReader.Read
         private int GlyphCount()
         {
             if ( ! _tables.ContainsKey("maxp")) throw new Exception("Bad font: maxp table missing (no glyph count)");
-            var old = file.Seek(_tables["maxp"].Offset + 4);
-            var count = file.GetUint16();
-            file.Seek(old);
+            var old = _file.Seek(_tables["maxp"].Offset + 4);
+            var count = _file.GetUint16();
+            _file.Seek(old);
             return count;
         }
 
         private FontHeader ReadHeadTable()
         {
             if ( ! _tables.ContainsKey("head")) throw new Exception("Bad font: Header table missing");
-            file.Seek(_tables["head"].Offset);
+            _file.Seek(_tables["head"].Offset);
 
             var h = new FontHeader();
             
             // DO NOT REARRANGE CALLS!
-            h.Version = file.GetFixed();
-            h.Revision = file.GetFixed();
-            h.ChecksumAdjustment = file.GetUint32();
-            h.MagicNumber = file.GetUint32();
+            h.Version = _file.GetFixed();
+            h.Revision = _file.GetFixed();
+            h.ChecksumAdjustment = _file.GetUint32();
+            h.MagicNumber = _file.GetUint32();
 
-            if (h.MagicNumber != HEADER_MAGIC) throw new Exception("Bad font: incorrect identifier in header table");
+            if (h.MagicNumber != HeaderMagic) throw new Exception("Bad font: incorrect identifier in header table");
 
-            h.Flags = file.GetUint16();
-            h.UnitsPerEm = file.GetUint16();
-            h.Created = file.GetDate();
-            h.Modified = file.GetDate();
+            h.Flags = _file.GetUint16();
+            h.UnitsPerEm = _file.GetUint16();
+            h.Created = _file.GetDate();
+            h.Modified = _file.GetDate();
 
-            h.xMin = file.GetFWord();
-            h.yMin = file.GetFWord();
-            h.xMax = file.GetFWord();
-            h.yMax = file.GetFWord();
+            h.xMin = _file.GetFWord();
+            h.yMin = _file.GetFWord();
+            h.xMax = _file.GetFWord();
+            h.yMax = _file.GetFWord();
 
-            h.MacStyle = file.GetUint16();
-            h.LowestRecPPEM = file.GetUint16();
-            h.FontDirectionHint = file.GetInt16();
-            h.IndexToLocFormat = file.GetInt16();
-            h.GlyphDataFormat = file.GetInt16();
+            h.MacStyle = _file.GetUint16();
+            h.LowestRecPPEM = _file.GetUint16();
+            h.FontDirectionHint = _file.GetInt16();
+            h.IndexToLocFormat = _file.GetInt16();
+            h.GlyphDataFormat = _file.GetInt16();
 
             return h;
         }
@@ -239,20 +239,20 @@ namespace FontReader.Read
             var tables = new Dictionary<string, OffsetEntry>();
 
             // DO NOT REARRANGE CALLS!
-            _scalarType = file.GetUint32();
-            var numTables = file.GetUint16();
+            _scalarType = _file.GetUint32();
+            var numTables = _file.GetUint16();
 
-            _searchRange = file.GetUint16();
-            _entrySelector = file.GetUint16();
-            _rangeShift = file.GetUint16();
+            _searchRange = _file.GetUint16();
+            _entrySelector = _file.GetUint16();
+            _rangeShift = _file.GetUint16();
 
             for (int i = 0; i < numTables; i++)
             {
-                var tag = file.GetString(4);
+                var tag = _file.GetString(4);
                 var entry = new OffsetEntry{
-                    Checksum = file.GetUint32(),
-                    Offset = file.GetUint32(),
-                    Length = file.GetUint32()
+                    Checksum = _file.GetUint32(),
+                    Offset = _file.GetUint32(),
+                    Length = _file.GetUint32()
                 };
                 tables.Add(tag, entry);
 
@@ -274,14 +274,15 @@ namespace FontReader.Read
                 sum += reader.GetUint32() & 0xFFFFFFFFu;
             }
 
-            file.Seek(old);
+            _file.Seek(old);
             return sum;
         }
 
         private Glyph ReadCompoundGlyph(Glyph g, long baseOffset)
         {
-            // http://stevehanov.ca/blog/TrueType.js
-            g.GlyphType = GlyphTypes.Empty;
+            // http://stevehanov.ca/blog/TrueType.js    ->  readCompoundGlyph: function(file, glyph) {...}
+            // Noto-sans "ǽ" \u01FD will trigger this
+            g.GlyphType = GlyphTypes.Compound;
             return g;
             //throw new Exception("Compounds not yet supported");
 
@@ -302,10 +303,10 @@ namespace FontReader.Read
 
             var ends = new List<int>();
 
-            for (int i = 0; i < g.NumberOfContours; i++) { ends.Add(file.GetUint16()); }
+            for (int i = 0; i < g.NumberOfContours; i++) { ends.Add(_file.GetUint16()); }
 
             // Skip past hinting instructions
-            file.Skip(file.GetUint16());
+            _file.Skip(_file.GetUint16());
 
             var numPoints = ends.Max() + 1;
 
@@ -316,12 +317,12 @@ namespace FontReader.Read
             // Read point flags, creating base entries
             for (int i = 0; i < numPoints; i++)
             {
-                var flag = (SimpleGlyphFlags)file.GetUint8();
+                var flag = (SimpleGlyphFlags)_file.GetUint8();
                 flags.Add(flag);
                 points.Add(new GlyphPoint{ OnCurve = flag.HasFlag(SimpleGlyphFlags.ON_CURVE)});
 
                 if (flag.HasFlag(SimpleGlyphFlags.REPEAT)) {
-                    var repeatCount = file.GetUint8();
+                    var repeatCount = _file.GetUint8();
                     i += repeatCount;
                     while (repeatCount-- > 0) {
                         flags.Add(flag);
@@ -349,12 +350,12 @@ namespace FontReader.Read
                 var flag = flags[i];
                 if (flag.HasFlag(byteFlag)) {
                     if (flag.HasFlag(deltaFlag)) {
-                        value += file.GetUint8();
+                        value += _file.GetUint8();
                     } else {
-                        value -= file.GetUint8();
+                        value -= _file.GetUint8();
                     }
                 } else if (!flag.HasFlag(deltaFlag)) {
-                    value += file.GetInt16();
+                    value += _file.GetInt16();
                 } else {
                     // value not changed
                     // this is why X and Y are separate
@@ -373,16 +374,16 @@ namespace FontReader.Read
             if (_header.IndexToLocFormat == 1) {
                 var target = table.Offset + index * 4;
                 if (target + 4 > size) throw new Exception("Glyph index out of range");
-                old = file.Seek(target);
-                offset = file.GetUint32();
+                old = _file.Seek(target);
+                offset = _file.GetUint32();
             } else {
                 var target = table.Offset + index * 2;
                 if (target + 2 > size) throw new Exception("Glyph index out of range");
-                old = file.Seek(target);
-                offset = file.GetUint16() * 2;
+                old = _file.Seek(target);
+                offset = _file.GetUint16() * 2;
             }
 
-            file.Seek(old);
+            _file.Seek(old);
             return offset + _tables["glyf"].Offset;
         }
 
@@ -398,8 +399,8 @@ namespace FontReader.Read
             //
             switch (name)
             {
-                case "OS/2": return new TtfTableOS2(file, _tables[name]);
-                case "name": return new TtfTableName(file, _tables[name]);
+                case "OS/2": return new TtfTableOS2(_file, _tables[name]);
+                case "name": return new TtfTableName(_file, _tables[name]);
 
                 default: return null;
             }

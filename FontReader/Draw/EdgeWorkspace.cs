@@ -1,4 +1,6 @@
-﻿namespace FontReader.Draw
+﻿using JetBrains.Annotations;
+
+namespace FontReader.Draw
 {
     /// <summary>
     /// Meta-data of edge definitions produced by the edge rasteriser.
@@ -12,7 +14,7 @@
         public float Baseline;
         public float Shift;
 
-        public static EdgeWorkspace Empty()
+        [NotNull]public static EdgeWorkspace Empty()
         {
             return new EdgeWorkspace{
                 Data = new byte[0],

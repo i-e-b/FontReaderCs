@@ -1,25 +1,47 @@
 ﻿using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Globalization;
 using System.Linq;
+using System.Text;
 using System.Windows.Forms;
 using FontReader.Read;
 
 namespace FontReader
 {
-    public partial class GlyphView : Form
+    /// <summary>
+    /// A view and edit screen for glyph forms
+    /// </summary>
+    /// <remarks>
+    /// Plan:
+    /// Movement
+    ///  * click/drag without key is always pan
+    ///  * wheel without key is always scale
+    ///  * ALT-click to move a point at high precision, without grid
+    ///  * CTRL-click to move a point on grid
+    ///  * SHIFT-click to select points on glyph without moving
+    ///    * SHIFT-CTRL-click to select points on onion layers without moving
+    ///
+    /// Grid and onion
+    ///  * Can set grid size and origin by exact number
+    ///  * Can set grid size and origin by point selection
+    ///  * multiple onion layers can be shown, all greyed out (translucent)
+    /// </remarks>
+    public sealed partial class GlyphView : Form
     {
         private TrueTypeFont _font;
 
         public GlyphView()
         {
             InitializeComponent();
-            glyphDisplay!.MouseDown += StartMouse;
-            glyphDisplay.MouseUp += EndMouse;
-            glyphDisplay.MouseMove += DoMouseMove;
+            MouseDown += StartMouse;
+            MouseUp += EndMouse;
+            MouseMove += DoMouseMove;
             MouseWheel += DoMouseWheel;
             KeyDown += DoKeyDown;
             KeyUp += DoKeyUp;
+            
+            DoubleBuffered = true;
         }
 
         double _scale = 0.1;
@@ -28,8 +50,8 @@ namespace FontReader
         int _mox, _moy;
         bool _mouseActive;
         private Glyph _glyph;
-        
-        const double MinScale = 0.000000001;
+
+        const double MinScale = 0.05;
 
         private void DoKeyUp(object sender, KeyEventArgs e)
         {
@@ -42,13 +64,20 @@ namespace FontReader
         private void DoMouseWheel(object sender, MouseEventArgs e)
         {
             if (e == null) return;
-            if (ModifierKeys.HasFlag(Keys.Control)) { _dy += e.Delta * _scale; }
-            else if (ModifierKeys.HasFlag(Keys.Alt)) { _dx += e.Delta * _scale; }
-            else { 
+            if (ModifierKeys.HasFlag(Keys.Control))
+            {
+                _dy += e.Delta * _scale;
+            }
+            else if (ModifierKeys.HasFlag(Keys.Alt))
+            {
+                _dx += e.Delta * _scale;
+            }
+            else
+            {
                 _scale += e.Delta * 0.0001;
                 if (_scale < MinScale) _scale = MinScale;
             }
-            
+
             Invalidate();
         }
 
@@ -77,8 +106,7 @@ namespace FontReader
 
         protected override void OnPaint(PaintEventArgs e)
         {
-            UpdateGlyphView();
-            base.OnPaint(e);
+            UpdateGlyphView(e.Graphics);
         }
 
         public void SetFont(TrueTypeFont font)
@@ -86,66 +114,108 @@ namespace FontReader
             _font = font;
         }
 
-        private void pickButton_Click(object sender, EventArgs e)
+        private string NormaliseText(string str)
         {
-            var chr = characterBox?.Text?.FirstOrDefault() ?? '\0';
-            _glyph = _font?.ReadGlyph(chr); // TODO: chars other than the 1st shown as onion layers; Handle \u0000 format chars
+            if (str == null) return "";
 
-            Invalidate();
+            var sb = new StringBuilder();
+            for (int i = 0; i < str.Length; i++)
+            {
+                if (str[i] == '\\')
+                {
+                    // escape code
+                    if ((i + 5) >= str.Length)
+                    {
+                        sb.Append(str[i]);
+                        continue;
+                    }
+
+                    if (char.ToLower(str[i + 1]) != 'u')
+                    {
+                        sb.Append(str[i]);
+                        continue;
+                    }
+
+                    var hex = str.Substring(i + 2, 4);
+                    var che = char.ConvertFromUtf32(int.Parse(hex, NumberStyles.HexNumber));
+                    sb.Append(che);
+                }
+                else sb.Append(str[i]);
+            }
+
+            return sb.ToString();
         }
 
-        private void UpdateGlyphView()
+        private void UpdateGlyphView(Graphics g)
         {
-            if (_glyph == null || glyphDisplay == null) return;
-            
-            var img = new Bitmap(glyphDisplay.Width, glyphDisplay.Height);
-            glyphDisplay.Image?.Dispose();
+            if (g == null) return;
+            if (_glyph == null) return;
             
             var background = Color.White;
             var curvePoint = Pens.Black;
             var controlPoint = Pens.Brown;
             var curveLine = Pens.Goldenrod;
-            var guide = Pens.Chartreuse;
-            
-            using (var g = Graphics.FromImage(img))
+            var majorGuide = Pens.Chartreuse;
+            var minorGuide = Pens.Beige;
+
+            g.CompositingQuality = CompositingQuality.HighQuality;
+            g.SmoothingMode = SmoothingMode.HighQuality;
+
+            g.Clear(background);
+
+            var gridStep = _scale * 150;
+            for (double gi = _dx; gi < Width; gi += gridStep) { g.DrawLine(minorGuide, (float) gi, 0, (float) gi, Height); }
+            for (double gi = _dx; gi >= 0; gi -= gridStep) { g.DrawLine(minorGuide, (float) gi, 0, (float) gi, Height); }
+
+            for (double gi = _dy; gi < Height; gi += gridStep) { g.DrawLine(minorGuide, 0, (float) gi, Width, (float) gi); }
+            for (double gi = _dy; gi >= 0; gi -= gridStep) { g.DrawLine(minorGuide, 0, (float) gi, Width, (float) gi); }
+
+            g.DrawLine(majorGuide, (float) _dx, 0, (float) _dx, Height); // X=0 line
+            g.DrawLine(majorGuide, 0, (float) _dy, Width, (float) _dy); // Y=0 line
+
+            var pts = _glyph.Points;
+            if (pts == null)
             {
-                g.CompositingQuality = CompositingQuality.HighQuality;
-                g.SmoothingMode = SmoothingMode.HighQuality;
-                
-                g.Clear(background);
-                
-                g.DrawLine(guide, (float)_dx, 0, (float)_dx, img.Height); // X=0 line
-                g.DrawLine(guide, 0, (float)_dy, img.Width, (float)_dy); // Y=0 line
-                
-                var pts = _glyph.Points;
-                if (pts == null) return;
-                foreach (var point in pts)
+                var message = _glyph.GlyphType.ToString();
+                g.DrawString(message, Font, Brushes.Black, 20, 20);
+                pts = Array.Empty<GlyphPoint>();
+            }
+
+            foreach (var point in pts)
+            {
+                if (point == null) continue;
+                var x = _dx + (point.X * _scale);
+                var y = _dy + (-point.Y * _scale);
+                if (point.OnCurve)
                 {
-                    if (point == null) continue;
-                    var x = _dx + (point.X * _scale);
-                    var y = _dy + (-point.Y * _scale);
-                    if (point.OnCurve)
-                    {
-                        g.DrawRectangle(curvePoint, (float) x - 2, (float) y - 2, 4, 4);
-                    }
-                    else
-                    {
-                        g.DrawEllipse(controlPoint, (float) x - 2, (float) y - 2, 4, 4);
-                    }
+                    g.DrawRectangle(curvePoint, (float) x - 2, (float) y - 2, 4, 4);
                 }
-                
-                var curves = _glyph.NormalisedContours();
-                foreach (var curve in curves)
+                else
                 {
-                    g.DrawLines(curveLine, curve.Select(f => 
-                        new PointF(
-                            (float) (_dx + ((f.X + _glyph.xMin) * _scale)),
-                            (float) (_dy + ((-f.Y - _glyph.yMin) * _scale))
-                        )).ToArray());
+                    g.DrawEllipse(controlPoint, (float) x - 2, (float) y - 2, 4, 4);
                 }
             }
 
-            glyphDisplay.Image = img;
+            var curves = _glyph.NormalisedContours();
+            foreach (var curve in curves)
+            {
+                g.DrawLines(curveLine, curve!.Select(f =>
+                    new PointF(
+                        (float) (_dx + ((f!.X + _glyph.xMin) * _scale)),
+                        (float) (_dy + ((-f.Y - _glyph.yMin) * _scale))
+                    )).ToArray());
+            }
+        }
+
+        private void characterBox_PreviewKeyDown(object sender, PreviewKeyDownEventArgs e)
+        {
+            if (e?.KeyCode != Keys.Enter && e?.KeyCode != Keys.Return) return;
+            
+            var normal = NormaliseText(characterBox?.Text);
+            var chr = normal?.FirstOrDefault() ?? '\0';
+            _glyph = _font?.ReadGlyph(chr); // TODO: chars other than the 1st shown as onion layers; Handle \u0000 format chars
+
+            Invalidate();
         }
     }
 }
