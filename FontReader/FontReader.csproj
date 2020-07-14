@@ -57,6 +57,12 @@
     <Compile Include="FontInfoWindow.Designer.cs">
       <DependentUpon>FontInfoWindow.cs</DependentUpon>
     </Compile>
+    <Compile Include="GlyphView.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="GlyphView.Designer.cs">
+      <DependentUpon>GlyphView.cs</DependentUpon>
+    </Compile>
     <Compile Include="Read\BinaryReader.cs" />
     <Compile Include="Read\CompoundComponent.cs" />
     <Compile Include="Read\CompoundGlyphFlags.cs" />
@@ -72,6 +78,7 @@
     <Compile Include="Read\GlyphPoint.cs" />
     <Compile Include="Read\GlyphTypes.cs" />
     <Compile Include="Read\IFontReader.cs" />
+    <Compile Include="Read\NameRecord.cs" />
     <Compile Include="Read\OffsetEntry.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -85,6 +92,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Form1.resx">
       <DependentUpon>Form1.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="GlyphView.resx">
+      <DependentUpon>GlyphView.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>

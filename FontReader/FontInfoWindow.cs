@@ -19,6 +19,9 @@ namespace FontReader
         {
             _font = fontToShow;
             tableList.DataSource = _font.ListTablesKeys().Select(MapTableDescription).ToList();
+
+
+            //tableProperties.SelectedObject = fontToShow.ReadGlyph('$');
         }
 
         private string MapTableDescription(string arg)

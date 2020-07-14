@@ -11,6 +11,7 @@ namespace FontReader.Read
             file.Seek(table.Offset);
             
             // See https://docs.microsoft.com/en-gb/typography/opentype/spec/os2
+            // See https://github.com/fontforge/fontforge/blob/master/fontforge/ttf.h#L467
             Version = file.GetUint16();
 
             switch (Version)

@@ -10,12 +10,13 @@ namespace FontReader
 {
     public partial class Form1 : Form
     {
-        readonly FontInfoWindow _infoWindow;
-        
+        FontInfoWindow _infoWindow;
+        private GlyphView _glyphWindow;
+
+
         public Form1()
         {
             InitializeComponent();
-            _infoWindow = new FontInfoWindow();
             TestRun();
         }
 
@@ -32,8 +33,13 @@ namespace FontReader
             var bendyFnt = new TrueTypeFont("bendy.ttf");           // a font with extreme curves for testing segmentation
             var guthenFnt = new TrueTypeFont("guthen_bloots.ttf");  // a curvy font
             
+            _infoWindow = new FontInfoWindow();
             _infoWindow.SetFont(daveFnt);
             _infoWindow.Show();
+            
+            _glyphWindow = new GlyphView();
+            _glyphWindow.SetFont(notoFnt);
+            _glyphWindow.Show();
 
             var msg_1 = "Hello, world! i0($} ▚ ¾ ∜ -_¬~";
             var msg_2 = "Got to be funky. CQUPOJ8";
