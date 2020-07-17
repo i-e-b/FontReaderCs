@@ -1,5 +1,4 @@
-﻿using System;
-using System.Drawing;
+﻿using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.Linq;
@@ -26,6 +25,11 @@ namespace FontReader
     ///  * Can set grid size and origin by exact number
     ///  * Can set grid size and origin by point selection
     ///  * multiple onion layers can be shown, all greyed out (translucent)
+    ///
+    /// Data
+    ///  * Subclass of Glyph that doesn't cache contour forms
+    ///  * Can save out to a folder
+    ///  * Due to references, will need to have a separate build/export phase
     /// </remarks>
     public sealed partial class GlyphView : Form
     {
@@ -49,7 +53,7 @@ namespace FontReader
         double _dy = 125;
         int _mox, _moy;
         bool _mouseActive;
-        private Glyph _glyph;
+        private EditGlyph _glyph;
 
         const double MinScale = 0.05;
 
@@ -153,7 +157,7 @@ namespace FontReader
             
             var background = Color.White;
             var curvePoint = Pens.Black;
-            var controlPoint = Pens.Brown;
+            var controlPoint = Pens.MediumVioletRed;
             var curveLine = Pens.Goldenrod;
             var majorGuide = Pens.Chartreuse;
             var minorGuide = Pens.Beige;
@@ -173,36 +177,31 @@ namespace FontReader
             g.DrawLine(majorGuide, (float) _dx, 0, (float) _dx, Height); // X=0 line
             g.DrawLine(majorGuide, 0, (float) _dy, Width, (float) _dy); // Y=0 line
 
-            var pts = _glyph.Points;
-            if (pts == null)
-            {
-                var message = _glyph.GlyphType.ToString();
-                g.DrawString(message, Font, Brushes.Black, 20, 20);
-                pts = Array.Empty<GlyphPoint>();
-            }
+            var contours = _glyph.Curves;
 
-            foreach (var point in pts)
+            foreach (var contour in contours)
             {
-                if (point == null) continue;
-                var x = _dx + (point.X * _scale);
-                var y = _dy + (-point.Y * _scale);
-                if (point.OnCurve)
-                {
-                    g.DrawRectangle(curvePoint, (float) x - 2, (float) y - 2, 4, 4);
-                }
-                else
-                {
-                    g.DrawEllipse(controlPoint, (float) x - 2, (float) y - 2, 4, 4);
-                }
-            }
 
-            var curves = _glyph.NormalisedContours();
-            foreach (var curve in curves)
-            {
+                foreach (var point in contour.Points)
+                {
+                    if (point == null) continue;
+                    var x = _dx + (point.X * _scale);
+                    var y = _dy + (-point.Y * _scale);
+                    if (point.OnCurve)
+                    {
+                        g.DrawRectangle(curvePoint, (float) x - 2, (float) y - 2, 4, 4);
+                    }
+                    else
+                    {
+                        g.DrawEllipse(controlPoint, (float) x - 2, (float) y - 2, 4, 4);
+                    }
+                }
+
+                var curve = contour.Render();
                 g.DrawLines(curveLine, curve!.Select(f =>
                     new PointF(
-                        (float) (_dx + ((f!.X + _glyph.xMin) * _scale)),
-                        (float) (_dy + ((-f.Y - _glyph.yMin) * _scale))
+                        (float) (_dx + (f!.X * _scale)),
+                        (float) (_dy + (-f.Y * _scale))
                     )).ToArray());
             }
         }
@@ -213,7 +212,7 @@ namespace FontReader
             
             var normal = NormaliseText(characterBox?.Text);
             var chr = normal?.FirstOrDefault() ?? '\0';
-            _glyph = _font?.ReadGlyph(chr); // TODO: chars other than the 1st shown as onion layers; Handle \u0000 format chars
+            _glyph = new EditGlyph(_font?.ReadGlyph(chr)); // TODO: chars other than the 1st shown as onion layers; Handle \u0000 format chars
 
             Invalidate();
         }

@@ -70,6 +70,8 @@
     <Compile Include="Read\BinaryReader.cs" />
     <Compile Include="Read\CompoundComponent.cs" />
     <Compile Include="Read\CompoundGlyphFlags.cs" />
+    <Compile Include="Read\Contour.cs" />
+    <Compile Include="Read\EditGlyph.cs" />
     <Compile Include="Read\FontHeader.cs" />
     <Compile Include="Read\FontReader.cs" />
     <Compile Include="Form1.cs">
