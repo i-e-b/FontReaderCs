@@ -1,4 +1,5 @@
-﻿using System.Drawing;
+﻿using System;
+using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.Linq;
@@ -53,6 +54,7 @@ namespace FontReader
         double _dy = 125;
         int _mox, _moy;
         bool _mouseActive;
+        int _cursorX, _cursorY;
         private EditGlyph _glyph;
 
         const double MinScale = 0.05;
@@ -100,11 +102,18 @@ namespace FontReader
 
         private void DoMouseMove(object sender, MouseEventArgs e)
         {
-            if (e == null || !_mouseActive) return;
-            _dx += e.X - _mox;
-            _dy += e.Y - _moy;
-            _mox = e.X;
-            _moy = e.Y;
+            if (e == null) return;
+            if (_mouseActive) // handle movement
+            {
+                _dx += e.X - _mox;
+                _dy += e.Y - _moy;
+                _mox = e.X;
+                _moy = e.Y;
+            }
+            
+            _cursorX = e.X;
+            _cursorY = e.Y;
+            
             Invalidate();
         }
 
@@ -177,11 +186,14 @@ namespace FontReader
             g.DrawLine(majorGuide, (float) _dx, 0, (float) _dx, Height); // X=0 line
             g.DrawLine(majorGuide, 0, (float) _dy, Width, (float) _dy); // Y=0 line
 
-            var contours = _glyph.Curves;
+            // Highlight nearest point
+            GlyphPoint nearestToCursor = null;
+            double distanceOfNearest = double.MaxValue;
+            
 
+            var contours = _glyph.Curves;
             foreach (var contour in contours)
             {
-
                 foreach (var point in contour.Points)
                 {
                     if (point == null) continue;
@@ -195,6 +207,14 @@ namespace FontReader
                     {
                         g.DrawEllipse(controlPoint, (float) x - 2, (float) y - 2, 4, 4);
                     }
+
+                    if (nearestToCursor == null) nearestToCursor = point;
+                    var distToCursor = Math.Sqrt(sqr(x - _cursorX) + sqr(y - _cursorY));
+                    if (distToCursor < distanceOfNearest)
+                    {
+                        nearestToCursor = point;
+                        distanceOfNearest = distToCursor;
+                    }
                 }
 
                 var curve = contour.Render();
@@ -204,6 +224,21 @@ namespace FontReader
                         (float) (_dy + (-f.Y * _scale))
                     )).ToArray());
             }
+            
+            // highlight nearest point
+            if (nearestToCursor != null)
+            {
+                var x = _dx + (nearestToCursor.X * _scale);
+                var y = _dy + (-nearestToCursor.Y * _scale);
+                if (nearestToCursor.OnCurve) g.DrawRectangle(curvePoint, (float) x - 4, (float) y - 4, 8, 8);
+                else g.DrawEllipse(controlPoint, (float)x - 4, (float)y - 4, 8, 8);
+            }
+        }
+
+        // ReSharper disable once InconsistentNaming
+        private static double sqr(double d)
+        {
+            return d*d;
         }
 
         private void characterBox_PreviewKeyDown(object sender, PreviewKeyDownEventArgs e)

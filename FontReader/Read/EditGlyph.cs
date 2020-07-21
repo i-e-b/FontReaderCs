@@ -45,6 +45,5 @@ namespace FontReader.Read
             }
             
         }
-
     }
 }
