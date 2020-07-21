@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Windows.Forms;
 using FontReader.Read;
+using JetBrains.Annotations;
 
 namespace FontReader
 {
@@ -35,6 +36,7 @@ namespace FontReader
     public sealed partial class GlyphView : Form
     {
         private TrueTypeFont _font;
+        private EditGlyph _glyph;
 
         public GlyphView()
         {
@@ -55,7 +57,10 @@ namespace FontReader
         int _mox, _moy;
         bool _mouseActive;
         int _cursorX, _cursorY;
-        private EditGlyph _glyph;
+        
+        int _lastContourIndex = -1;
+        int _lastPointIndex = -1;
+        bool _pointLock;
 
         const double MinScale = 0.05;
 
@@ -90,6 +95,7 @@ namespace FontReader
         private void EndMouse(object sender, MouseEventArgs e)
         {
             _mouseActive = false;
+            _pointLock = false;
         }
 
         private void StartMouse(object sender, MouseEventArgs e)
@@ -105,16 +111,44 @@ namespace FontReader
             if (e == null) return;
             if (_mouseActive) // handle movement
             {
-                _dx += e.X - _mox;
-                _dy += e.Y - _moy;
-                _mox = e.X;
-                _moy = e.Y;
+                if (ModifierKeys.HasFlag(Keys.Alt))
+                {
+                    TryMovePoint(e);
+                }
+                else
+                {
+                    PanCanvas(e);
+                }
             }
-            
+
             _cursorX = e.X;
             _cursorY = e.Y;
-            
             Invalidate();
+        }
+
+        private void TryMovePoint([NotNull]MouseEventArgs e)
+        {
+            if (_lastContourIndex < 0 || _lastPointIndex < 0) return; // nothing selected
+            if (_glyph == null) return; // no character loaded
+            
+            var dx = e.X - _cursorX;
+            var dy = e.Y - _cursorY;
+            
+            var point = _glyph.Curves[_lastContourIndex].Points[_lastPointIndex];
+            if (point == null) return;
+            
+            _pointLock = true; // prevent switching point during a drag
+            point.X += dx / _scale;
+            point.Y -= dy / _scale;
+            Invalidate();
+        }
+
+        private void PanCanvas([NotNull]MouseEventArgs e)
+        {
+            _dx += e.X - _mox;
+            _dy += e.Y - _moy;
+            _mox = e.X;
+            _moy = e.Y;
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -192,10 +226,12 @@ namespace FontReader
             
 
             var contours = _glyph.Curves;
-            foreach (var contour in contours)
+            for (var contourIndex = 0; contourIndex < contours.Count; contourIndex++)
             {
-                foreach (var point in contour.Points)
+                var contour = contours[contourIndex];
+                for (var pointIndex = 0; pointIndex < contour.Points.Count; pointIndex++)
                 {
+                    var point = contour.Points[pointIndex];
                     if (point == null) continue;
                     var x = _dx + (point.X * _scale);
                     var y = _dy + (-point.Y * _scale);
@@ -208,12 +244,17 @@ namespace FontReader
                         g.DrawEllipse(controlPoint, (float) x - 2, (float) y - 2, 4, 4);
                     }
 
-                    if (nearestToCursor == null) nearestToCursor = point;
-                    var distToCursor = Math.Sqrt(sqr(x - _cursorX) + sqr(y - _cursorY));
-                    if (distToCursor < distanceOfNearest)
+                    if (!_pointLock)
                     {
-                        nearestToCursor = point;
-                        distanceOfNearest = distToCursor;
+                        if (nearestToCursor == null) nearestToCursor = point;
+                        var distToCursor = Math.Sqrt(sqr(x - _cursorX) + sqr(y - _cursorY));
+                        if (distToCursor < distanceOfNearest)
+                        {
+                            _lastContourIndex = contourIndex;
+                            _lastPointIndex = pointIndex;
+                            nearestToCursor = point;
+                            distanceOfNearest = distToCursor;
+                        }
                     }
                 }
 
@@ -224,7 +265,7 @@ namespace FontReader
                         (float) (_dy + (-f.Y * _scale))
                     )).ToArray());
             }
-            
+
             // highlight nearest point
             if (nearestToCursor != null)
             {
@@ -243,11 +284,15 @@ namespace FontReader
 
         private void characterBox_PreviewKeyDown(object sender, PreviewKeyDownEventArgs e)
         {
-            if (e?.KeyCode != Keys.Enter && e?.KeyCode != Keys.Return) return;
-            
-            var normal = NormaliseText(characterBox?.Text);
-            var chr = normal?.FirstOrDefault() ?? '\0';
-            _glyph = new EditGlyph(_font?.ReadGlyph(chr)); // TODO: chars other than the 1st shown as onion layers; Handle \u0000 format chars
+            if (e?.KeyCode == Keys.Enter || e?.KeyCode == Keys.Return) // update character selection
+            {
+                var normal = NormaliseText(characterBox?.Text);
+                var chr = normal?.FirstOrDefault() ?? '\0';
+
+                _lastContourIndex = -1;
+                _lastPointIndex = -1;
+                _glyph = new EditGlyph(_font?.ReadGlyph(chr)); // TODO: chars other than the 1st shown as onion layers;
+            }
 
             Invalidate();
         }
