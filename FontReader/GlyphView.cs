@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Globalization;
@@ -296,5 +297,60 @@ namespace FontReader
 
             Invalidate();
         }
+
+        private void collapseButton_Click(object sender, EventArgs e)
+        {
+            // attract control points to their nearest neighbors.
+            if (_glyph == null) return;
+            var allPoints = new List<GlyphPoint>(_glyph.Curves.SelectMany(c => c.Points)
+                .Where(p=>p.OnCurve) // curves are weightless
+            );
+
+            // Really inefficient, but simple n*m gravity
+            foreach (var contour in _glyph.Curves)
+            {
+                foreach (var point in contour.Points)
+                {
+                    //if (!point.OnCurve) continue; // don't move curve points
+                    var forces = allPoints.Select(other=>GetForce(point, other)).OrderByDescending(p=>p.M).Take(3).ToList();
+                    var sumX = forces.Sum(p=>p.X);
+                    var sumY = forces.Sum(p=>p.Y);
+                    
+                    point.X += sumX;
+                    point.Y += sumY;
+                }
+            }
+            Invalidate();
+        }
+
+        private GravityPoint GetForce(GlyphPoint self, GlyphPoint other)
+        {
+            const double scale = 10.0;
+            const double radiusLimit = 250.0;
+            const double stickyRadius = 5.0;
+            
+            var dx = Math.Abs(self!.X - other!.X);
+            var dy = Math.Abs(self!.Y - other!.Y);
+            
+            if (dx < 0.0001 && dy < 0.0001) return new GravityPoint {X = 0, Y = 0, M=0};
+            
+            var dist = Math.Sqrt(dx*dx + dy*dy);
+            if (dist > radiusLimit) return new GravityPoint {X = 0, Y = 0, M=0};
+            if (dist < stickyRadius) return new GravityPoint {X = 0, Y = 0, M=0};
+            
+            var f = scale / dist;
+            
+            var fx = (other.X - self.X) * f;
+            var fy = (other.Y - self.Y) * f;
+
+            return new GravityPoint {X = fx, Y = fy, M=f};
+        }
+    }
+
+    internal class GravityPoint
+    {
+        public double X { get; set; }
+        public double Y { get; set; }
+        public double M { get; set; }
     }
 }

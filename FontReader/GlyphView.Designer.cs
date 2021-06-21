@@ -33,6 +33,7 @@ namespace FontReader
         {
             this.characterBox = new System.Windows.Forms.TextBox();
             this.label1 = new System.Windows.Forms.Label();
+            this.collapseButton = new System.Windows.Forms.Button();
             this.SuspendLayout();
             // 
             // characterBox
@@ -55,11 +56,23 @@ namespace FontReader
             this.label1.TabIndex = 3;
             this.label1.Text = "Character";
             // 
+            // collapseButton
+            // 
+            this.collapseButton.Anchor = ((System.Windows.Forms.AnchorStyles) ((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
+            this.collapseButton.Location = new System.Drawing.Point(400, 340);
+            this.collapseButton.Name = "collapseButton";
+            this.collapseButton.Size = new System.Drawing.Size(75, 23);
+            this.collapseButton.TabIndex = 4;
+            this.collapseButton.Text = "Collapse";
+            this.collapseButton.UseVisualStyleBackColor = true;
+            this.collapseButton.Click += new System.EventHandler(this.collapseButton_Click);
+            // 
             // GlyphView
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(487, 378);
+            this.Controls.Add(this.collapseButton);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.characterBox);
             this.Name = "GlyphView";
@@ -67,6 +80,10 @@ namespace FontReader
             this.ResumeLayout(false);
             this.PerformLayout();
         }
+
+        private System.Windows.Forms.Button collapseButton;
+
+        private System.Windows.Forms.Button button1;
 
         private System.Windows.Forms.TextBox characterBox;
         private System.Windows.Forms.Label label1;
