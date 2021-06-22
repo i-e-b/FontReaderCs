@@ -7,7 +7,8 @@ namespace FontReader.Draw
 {
     /// <summary>
     /// Image renderers.
-    /// These use the Scanline rasteriser internally
+    /// These use the Scanline rasteriser internally.
+    /// See https://developer.apple.com/fonts/TrueType-Reference-Manual/RM02/Chap2.html
     /// </summary>
     public class Renderers
     {
