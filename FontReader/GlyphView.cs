@@ -300,10 +300,93 @@ namespace FontReader
 
         private void collapseButton_Click(object sender, EventArgs e)
         {
+            // Scan the font across a grid, trying to find the middle of each stroke.
+            // This is added as another contour
+            if (_glyph == null) return;
+            
+            var lefts = new List<GlyphPoint>(); // points down the left of the glyph
+            var rights = new List<GlyphPoint>(); // points down the right of the glyph
+            var thirds = new List<GlyphPoint>(); // any extras we find
+            var allSegments = _glyph.Curves.SelectMany(ToLineSegments).ToList();
+            
+            // Vertical centres:
+            var top = allSegments.Min(s=>s.Top);
+            var bottom = allSegments.Max(s=>s.Bottom);
+            var height = bottom - top;
+
+            for (var y = top + 0.001; y < bottom; y+= height / 10) // chop character into slices
+            {
+                // find segments that affect this line
+                var spans = allSegments.Where(s => s.Bottom >= y && s.Top <= y).Select(s => s.PositionedAtY(y) ).OrderBy(s=>s.Pos).ToArray();
+                if (spans.Length < 1) continue; // nothing on this line
+                
+                //if (spans[0].Clockwise) throw new Exception("Inside out font?");
+
+                var nzwr = 0;
+                double left = 0;
+                var idx = 0;
+                foreach (var span in spans) // run across the scan line, find left and right edges of drawn area
+                {
+                    if (nzwr == 0) left = span.Pos;
+                    if (span.Clockwise) nzwr--;
+                    else nzwr++;
+
+                    if (nzwr == 0)
+                    {
+                        var width = span.Pos - left; // write the point half-way across the drawn span
+                        var pt = new GlyphPoint(left + width / 2, y);
+                        if (idx == 0) lefts.Add(pt);
+                        else if (idx == 1) rights.Add(pt);
+                        else thirds.Add(pt);
+                        idx++;
+                    }
+                }
+                
+            }
+            
+            // TODO: guess a way to connect these
+            _glyph.Curves.Add(new Contour(lefts.Concat(Reverse(rights)).Concat(thirds))); // spit out the line for diagnosis
+            //_glyph.Curves.Add(new Contour(rights)); // spit out the line for diagnosis
+            //_glyph.Curves.Add(new Contour(test!.Select(p=>new GlyphPoint(p.X + 20, p.Y))));
+            
+            Invalidate();
+        }
+
+        private IEnumerable<GlyphPoint> Reverse(List<GlyphPoint> rights)
+        {
+            for (int i = rights.Count - 1; i >= 0; i--)
+            {
+                yield return rights[i];
+            }
+        }
+
+        private List<Segment> ToLineSegments(Contour glyphCurve)
+        {
+            var outp = new List<Segment>();
+            var curve = glyphCurve?.Render();
+            if (curve == null) return outp;
+            for (int i = 0; i < curve.Count; i++)
+            {
+                var j = (i + 1) % curve.Count;
+                
+                if (Horizontal(curve[i], curve[j])) continue;
+                outp.Add(new Segment(curve[i], curve[j]));
+            }
+            return outp;
+        }
+
+        private bool Horizontal(GlyphPoint a, GlyphPoint b)
+        {
+            return Math.Abs(a.Y - b.Y) < 0.00001;
+        }
+
+
+        private void gravityButton_Click(object sender, EventArgs e)
+        {
             // attract control points to their nearest neighbors.
             if (_glyph == null) return;
             var allPoints = new List<GlyphPoint>(_glyph.Curves.SelectMany(c => c.Points)
-                .Where(p=>p.OnCurve) // curves are weightless
+                    .Where(p=>p.OnCurve) // curves are weightless
             );
 
             // Really inefficient, but simple n*m gravity
@@ -322,7 +405,6 @@ namespace FontReader
             }
             Invalidate();
         }
-
         private GravityPoint GetForce(GlyphPoint self, GlyphPoint other)
         {
             const double scale = 10.0;
@@ -344,6 +426,50 @@ namespace FontReader
             var fy = (other.Y - self.Y) * f;
 
             return new GravityPoint {X = fx, Y = fy, M=f};
+        }
+
+    }
+
+    internal struct Segment
+    {
+        public double Top;
+        public double Bottom;
+        public double TopX;
+        public double BottomX;
+        public double Dy, Dx;
+        
+        public double Pos;
+
+        public Segment(GlyphPoint a, GlyphPoint b)
+        {
+            if (a.Y == b.Y) Clockwise = a.X < b.X;
+            else Clockwise = a.Y > b.Y;
+
+            if (a.Y < b.Y)
+            {
+                Top  = a.Y; Bottom  = b.Y;
+                TopX = a.X; BottomX = b.X;
+            }
+            else
+            {
+                Top  = b.Y; Bottom  = a.Y;
+                TopX = b.X; BottomX = a.X;
+            }
+            Dy = Bottom-Top;
+            if (Dy < 0.0001) throw new Exception("Bad segment filtering");
+            Dx = (BottomX - TopX) / Dy;
+            
+            Pos = int.MinValue;
+        }
+
+        public bool Clockwise { get; set; }
+
+        public Segment PositionedAtY(double y)
+        {
+            var n = (Segment)MemberwiseClone();
+            var dy = y - Top;
+            n.Pos = (dy * Dx) + TopX;
+            return n;
         }
     }
 

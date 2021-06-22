@@ -34,6 +34,7 @@ namespace FontReader
             this.characterBox = new System.Windows.Forms.TextBox();
             this.label1 = new System.Windows.Forms.Label();
             this.collapseButton = new System.Windows.Forms.Button();
+            this.gravityButton = new System.Windows.Forms.Button();
             this.SuspendLayout();
             // 
             // characterBox
@@ -67,11 +68,23 @@ namespace FontReader
             this.collapseButton.UseVisualStyleBackColor = true;
             this.collapseButton.Click += new System.EventHandler(this.collapseButton_Click);
             // 
+            // gravityButton
+            // 
+            this.gravityButton.Anchor = ((System.Windows.Forms.AnchorStyles) ((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
+            this.gravityButton.Location = new System.Drawing.Point(319, 340);
+            this.gravityButton.Name = "gravityButton";
+            this.gravityButton.Size = new System.Drawing.Size(75, 23);
+            this.gravityButton.TabIndex = 5;
+            this.gravityButton.Text = "Gravity";
+            this.gravityButton.UseVisualStyleBackColor = true;
+            this.gravityButton.Click += new System.EventHandler(this.gravityButton_Click);
+            // 
             // GlyphView
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(487, 378);
+            this.Controls.Add(this.gravityButton);
             this.Controls.Add(this.collapseButton);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.characterBox);
@@ -80,6 +93,8 @@ namespace FontReader
             this.ResumeLayout(false);
             this.PerformLayout();
         }
+
+        private System.Windows.Forms.Button gravityButton;
 
         private System.Windows.Forms.Button collapseButton;
 
